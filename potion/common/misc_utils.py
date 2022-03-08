@@ -8,6 +8,7 @@ Created on Sat Jan 12 23:12:09 2019
 
 import random
 import numpy as np
+import itertools
 import torch
 import os
 from gym.spaces.box import Box
@@ -36,6 +37,9 @@ def seed_all_agent(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
         
+def concatenate(list_batches):
+    return tuple(itertools.chain(*list_batches))
+
 def unpack(batch):
     "Unpacks list of tuples of tensors into one tuple of stacked arrays"
     return (torch.stack(x) for x in zip(*batch))
