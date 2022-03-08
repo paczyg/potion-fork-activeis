@@ -133,7 +133,7 @@ def light_episode_generator(env, policy, horizon=float('inf'), disc=1., action_f
         return ret, uret, t, info_sum
     
 def generate_batch(env, policy, horizon, episodes, action_filter=None, render=False, n_jobs=False, seed=None, deterministic=False, key=None):
-    """Batch: list of (features, actions, rewards, mask) tuples"""
+    """Batch: list of (features, actions, rewards, mask, info) tuples"""
     if not n_jobs:
         gen = sequential_episode_generator(env, policy, horizon, episodes, action_filter, render, deterministic, key)
         batch = [ep for ep in gen]

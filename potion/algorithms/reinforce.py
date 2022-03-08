@@ -131,7 +131,7 @@ def reinforce(env, policy, horizon, *,
             test_batch = generate_batch(env, policy, horizon, test_batchsize, 
                                         action_filter=action_filter,
                                         seed=seed,
-                                        njobs=parallel,
+                                        n_jobs=parallel,
                                         deterministic=True,
                                         key=info_key)
             log_row['TestPerf'] = performance(test_batch, disc)
