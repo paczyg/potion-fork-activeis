@@ -22,9 +22,9 @@ class LQ(gym.Env):
         'video.frames_per_second': 30
     }
 
-    def __init__(self):
-        self.ds = 1 #state dimension
-        self.da = 1 #action dimension
+    def __init__(self, ds=1, da=1):
+        self.ds = ds #state dimension
+        self.da = da #action dimension
         self.horizon = 10 #task horizon (reset is not automatic!)
         self.gamma = 0.9 #discount factor
         self.max_pos = 1.0 * np.ones(self.ds) #max state for clipping
