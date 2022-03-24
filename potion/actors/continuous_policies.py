@@ -67,18 +67,13 @@ class ShallowGaussianPolicy(ContinuousPolicy):
             x = self.feature_fun(s)
         else:
             x = s
-            
+
         logp = -((a - self.mu(x)) ** 2) / (2 * sigma ** 2) - \
             log_sigma  - .5 * math.log(2 * math.pi)
-        return torch.sum(logp, 2)
+        return torch.sum(logp, -1)   #TODO: NxHxd_a
     
     def forward(self, s, a):
-        if self.feature_fun is not None:
-            x = self.feature_fun(s)
-        else:
-            x = s
-        
-        return torch.exp(self.log_pdf(x, a))
+        return torch.exp(self.log_pdf(s, a))
     
     def act(self, s, deterministic=False):
         with torch.no_grad():
@@ -166,7 +161,7 @@ class ShallowGaussianPolicy(ContinuousPolicy):
                 'LearnStd': self.learn_std,
                 'StateDim': self.n_states,
                 'ActionDim': self.n_actions,
-                'MuInit': self.mu_init,
+                'MuInit': self.mu_init.tolist(),
                 'LogstdInit': self.logstd_init,
                 'FeatureFun': self.feature_fun,
                 'SquashFun': self.squash_fun}
@@ -233,12 +228,7 @@ class DeepGaussianPolicy(ContinuousPolicy):
         return torch.sum(logp, 2)
     
     def forward(self, s, a):
-        if self.feature_fun is not None:
-            x = self.feature_fun(s)
-        else:
-            x = s
-        
-        return torch.exp(self.log_pdf(x, a))
+        return torch.exp(self.log_pdf(s, a))
     
     def act(self, s, deterministic=False):
         with torch.no_grad():
@@ -298,7 +288,7 @@ class DeepGaussianPolicy(ContinuousPolicy):
                 'LearnStd': self.learn_std,
                 'StateDim': self.n_states,
                 'ActionDim': self.n_actions,
-                'MuInit': self.mu_init,
+                'MuInit': self.mu_init.tolist(),
                 'LogstdInit': self.logstd_init,
                 'FeatureFun': self.feature_fun,
                 'SquashFun': self.squash_fun}
@@ -386,12 +376,7 @@ class ShallowSquashedPolicy(ContinuousPolicy):
         return torch.sum(logp, -1)
     
     def forward(self, s, a):
-        if self.feature_fun is not None:
-            x = self.feature_fun(s)
-        else:
-            x = s
-            
-        return torch.exp(self.log_pdf(x, a))
+        return torch.exp(self.log_pdf(s, a))
     
     def act(self, s, deterministic=False):
         with torch.no_grad():
@@ -497,7 +482,7 @@ class ShallowSquashedPolicy(ContinuousPolicy):
                 'LearnStd': self.learn_std,
                 'StateDim': self.n_states,
                 'ActionDim': self.n_actions,
-                'MuInit': self.mu_init,
+                'MuInit': self.mu_init.tolist(),
                 'LogstdInit': self.logstd_init,
                 'FeatureFun': self.feature_fun}
 
@@ -638,7 +623,7 @@ class DeepSquashedPolicy(ContinuousPolicy):
                 'LearnStd': self.learn_std,
                 'StateDim': self.n_states,
                 'ActionDim': self.n_actions,
-                'MuInit': self.mu_init,
+                'MuInit': self.mu_init.tolist(),
                 'LogstdInit': self.logstd_init,
                 'FeatureFun': self.feature_fun}
 
@@ -705,3 +690,56 @@ if __name__ == '__main__':
     print(dsp(s,a))
     print(dsp.log_pdf(s,a))
     print(tu.flat_gradients(dsp, dsp.log_pdf(s,a)))
+
+# **********************************************************************************
+DEBUG = False
+if DEBUG:
+#%%
+    from potion.envs.lq import LQ
+
+    env = LQ(1,1)
+    state_dim  = sum(env.observation_space.shape)
+    action_dim = sum(env.action_space.shape)
+    horizon    = env.horizon
+
+
+    from potion.actors.continuous_policies import ShallowGaussianPolicy
+    import torch
+
+    # Linear policy in the state
+    policy = ShallowGaussianPolicy(state_dim, # input size
+                                action_dim, # output size
+                                mu_init = torch.zeros(1), # initial mean parameters
+                                logstd_init = 0.0, # log of standard deviation
+                                learn_std = False # We are NOT going to learn the variance parameter
+                                )
+#%%
+
+    from potion.simulation.trajectory_generators import generate_batch
+    from potion.common.torch_utils import complete_out, complete_in
+    from potion.common.misc_utils import unpack
+    
+    batch = generate_batch(env, policy, horizon, 5, action_filter=None, seed=None, n_jobs=False)
+    trj = batch[0]
+    states = trj[0]
+    actions = trj[1]
+#%%
+    # NxHxd_a = 1x1xd_a
+    s = states[0]
+    a = actions[0]
+    p = policy(s, a)
+    p.size()
+    p.dim()
+
+    # NxHxd_a = 1x10xd_a
+    p = policy(states, actions)
+    p.size()
+    p.dim()
+
+    # NxHxd_a = 5x10xd_a
+    unpack(states)
+    states, actions, rewards, mask, _ = unpack(batch) #NxHxd_s, NxHxd_a, NxH, NxH
+
+    p = policy(states, actions)
+    p.size()
+    p.dim()
