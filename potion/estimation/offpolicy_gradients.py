@@ -5,6 +5,8 @@ Policy gradient stimators
 @author: Matteo Papini
 """
 
+import functools
+import math
 import torch
 import potion.common.torch_utils as tu
 from potion.common.misc_utils import unpack, discount
@@ -41,38 +43,106 @@ def off_gpomdp_estimator(batch, disc, policy, target_params,
 def _shallow_off_gpomdp_estimator(batch, disc, policy, target_params, 
                                   baselinekind='peters', 
                                   result='mean'):
-    with torch.no_grad():        
+    with torch.no_grad():
         states, actions, rewards, mask, _ = unpack(batch) # NxHxm, NxHxd, NxH, NxH
-        
         disc_rewards = discount(rewards, disc) #NxH
-        scores = policy.score(states, actions) #NxHxM
-        G = torch.cumsum(tensormat(scores, mask), 1) #NxHxm
-        n_k = torch.sum(mask, dim=0) #H
-        n_k[n_k==0.] = 1.
-        behavioral_logps = policy.log_pdf(states, actions) #NxH
+
+        
         behavioral_params = policy.get_flat()
         policy.set_from_flat(target_params)
+        scores = policy.score(states, actions) #NxHxD
+        G = torch.cumsum(tensormat(scores, mask), 1) #NxHxD
+
         target_logps = policy.log_pdf(states, actions) #NxH
         policy.set_from_flat(behavioral_params)
+        behavioral_logps = policy.log_pdf(states, actions) #NxH
         log_iws = torch.cumsum(target_logps - behavioral_logps, 1) #NxH
         stabilizers, _ = torch.max(log_iws, dim=1, keepdim=True) #NxH
         
         if baselinekind == 'peters':
             baseline = torch.sum(tensormat(G ** 2, disc_rewards * torch.exp(2*(log_iws - stabilizers))), 0) / \
-                            torch.sum(tensormat(G ** 2, torch.exp(2*(log_iws - stabilizers))), 0) #Hxm
+                            torch.sum(tensormat(G ** 2, torch.exp(2*(log_iws - stabilizers))), 0) #HxD
+        elif baselinekind == 'avg':
+            baseline = torch.mean(disc_rewards, 0).unsqueeze    #[H,1]
         elif baselinekind == 'zero':
-            baseline = torch.zeros_like(G[0]) #Hxm
+            baseline = torch.zeros_like(G[0]) #HxD
         else:
             raise NotImplementedError
         baseline[baseline != baseline] = 0 #removes non-real values
-        values = disc_rewards.unsqueeze(2) - baseline.unsqueeze(0) #NxHxm
+
+        values = disc_rewards.unsqueeze(2) - baseline.unsqueeze(0) #NxHxD
         
-        _samples = torch.sum(tensormat(G * values, mask * torch.exp(log_iws)), 1) #Nxm
+        _samples = torch.sum(tensormat(G * values, mask * torch.exp(log_iws)), 1) #NxD
         if result == 'samples':
-            return _samples #Nxm
+            return _samples #NxD
         else:
-            return torch.mean(_samples, 0) #m
+            return torch.mean(_samples, 0) #D
     
+def _shallow_multioff_gpomdp_estimator(batch, disc, target_policy, behavioural_policies, alphas,*,
+                                  baselinekind='peters', 
+                                  result='mean'):
+    # Check parameters
+    # ----------------
+    if not isinstance(behavioural_policies,list): 
+        behavioural_policies = [behavioural_policies]
+    if not isinstance(alphas,list): 
+        alphas = [alphas]
+
+    assert len(behavioural_policies)==len(alphas), (
+        "Parameters proposal_policies and alphas do not have same lenght")
+    assert abs(sum(alphas) - 1) <= 1e-5, (
+        "Parameter alphas do not sum to 1")
+
+    # Estimate gradients
+    # ------------------
+    
+    # Utlity function
+    # Usage: log(x+y) = smoothmax(log(x),log(y)) := log(x) + log(1+exp(log(y)-log(x)))
+    smoothmax = lambda x,y: x + torch.log(1+torch.exp(y-x))
+
+    with torch.no_grad():
+        # Samples
+        states, actions, rewards, mask, _   = unpack(batch) # [N,H,S], [N,H,A], [N,H], [N,H]
+
+        # Scores
+        disc_rewards    = discount(rewards, disc)                       # [N,H]
+        _scores         = target_policy.score(states, actions)          # [N,H,D]
+        scores          = torch.cumsum(tensormat(_scores, mask), 1)     # [N,H,D]
+
+        # Importance weights
+        _target_logps       = target_policy.log_pdf(states, actions)*mask       # [N,H]
+        target_logps_cms    = torch.cumsum(_target_logps, 1)                    # [N,H]
+
+        _behavioral_logps_cms = [None]*len(behavioural_policies)
+        for i,p in enumerate(behavioural_policies):
+            _behavioral_logps_cms[i] = math.log(alphas[i]) + torch.cumsum(p.log_pdf(states, actions)*mask, 1)   # [N,H]
+        behavioral_logps_cms = functools.reduce(smoothmax, _behavioral_logps_cms) # [N,H]
+        
+        log_iws             = target_logps_cms - behavioral_logps_cms           # [N,H]
+        stabilizers, _      = torch.max(log_iws, dim=1, keepdim=True)           # [N,H]
+
+        # Baseline
+        H = scores.shape[1]
+        D = scores.shape[2]
+        if baselinekind == 'peters':
+            baseline = torch.sum(tensormat(scores ** 2, disc_rewards * torch.exp(2*(log_iws - stabilizers))), 0) / \
+                            torch.sum(tensormat(scores ** 2, torch.exp(2*(log_iws - stabilizers))), 0)  # [H,D]
+        elif baselinekind == 'avg':
+            baseline = torch.mean(disc_rewards, 0)          #[H]
+            baseline = baseline.reshape(H,1).repeat(1,D)    #[H,D]
+        elif baselinekind == 'zero':
+            baseline = torch.zeros_like(scores[0]) # [H,D]
+        else:
+            raise NotImplementedError
+        baseline[baseline != baseline] = 0 #removes non-real values
+        values = disc_rewards.unsqueeze(2) - baseline.unsqueeze(0) # [N,H,D]
+
+        # Gradient samples
+        grad_samples = torch.sum(tensormat(scores * values, mask * torch.exp(log_iws)), 1) # [N,D]
+        if result == 'samples':
+            return grad_samples # [N,D]
+        else:
+            return torch.mean(grad_samples, 0) # [D]
 
 #entropy-augmented version
 def egpomdp_estimator(batch, disc, policy, coeff, baselinekind='avg', result='mean',
@@ -147,15 +217,42 @@ if __name__ == '__main__':
     N = 100
     H = 100
     disc = 0.99
-    pol = Gauss(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)
+    pol_b = Gauss(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)    # Behavioural policy
+    pol_t = Gauss(4,1, mu_init=[1.,1.,1.,1.], learn_std=True)    # Target policy
     
-    batch = generate_batch(env, pol, H, N)
+    batch = generate_batch(env, pol_b, H, N)
     
-    on = gpomdp_estimator(batch, disc, pol, baselinekind='peters', 
-                         shallow=True)
-    
-    off = off_gpomdp_estimator(batch, disc, pol, pol.get_flat(), 
-                               baselinekind='peters',
-                               shallow=True)
-    print(on, off)
+    # Compare on- and off-policy evaluations with a single policy
+    # -----------------------------------------------------------
+    from potion.estimation.importance_sampling import multiple_importance_weights
+    for b in ['zero','peters']:
+        on = gpomdp_estimator(batch, disc, pol_b, baselinekind=b, 
+                            shallow=True)
+        
+        off = off_gpomdp_estimator(batch, disc, pol_b, pol_b.get_flat(), 
+                                baselinekind=b,
+                                shallow=True)
+
+        on_samples = gpomdp_estimator(batch, disc, pol_b, baselinekind=b, shallow=True, result='samples')
+        iws   = multiple_importance_weights(batch, pol_b, pol_b, 1)
+        off_iws = torch.mean(torch.einsum('i,ij->ij', iws, on_samples), 0)
+
+        print(f"{on}\n{off}\n{off_iws}")
+
+    # Compare off-policy evaluations by means of importance weights external to the estimator and inside the estimator
+    # ----------------------------------------------------------------------------------------------------------------
+    for b in ['zero','peters']:
+        off = off_gpomdp_estimator(batch, disc, pol_b, pol_t.get_flat(), 
+                                baselinekind=b,
+                                shallow=True)
+
+        off_samples = gpomdp_estimator(batch, disc, pol_t, baselinekind=b, shallow=True, result='samples')
+        iws   = multiple_importance_weights(batch, pol_t, pol_b, 1)
+        off_iws = torch.mean(torch.einsum('i,ij->ij', iws, off_samples), 0)
+
+        off_multi = _shallow_multioff_gpomdp_estimator(batch, disc, pol_t, pol_b, 1,
+                                            baselinekind=b, 
+                                            result='mean')
+
+        print(f"{off}\n{off_iws}\n{off_multi}\n") #FIXME: dovrebbero essere uguali?? Forse no, perchè l'implementazione con iws non è per-step       
     
