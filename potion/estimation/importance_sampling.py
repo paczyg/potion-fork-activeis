@@ -42,7 +42,7 @@ def importance_weights(batch, policy, target_params, normalize=False, clip=None)
 def multiple_importance_weights(batch, policy, proposal_policies, alphas):
     """
     Compute Multiple Importance Sampling (MIS) weights, one for each trajectory in the batch, i.e:
-        policy(tau) / sum_j alpha_j*policy(tau;proposal_params),
+        policy(tau) / sum_j alpha_j*proposal_policies_j(tau),
 
     Parameters
     ----------
@@ -65,7 +65,7 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas):
         "Parameter alphas do not sum to 1")
 
     # Utlity function
-    # Usage: log(x+y) = smoothmax(log(x),log(y)) = log(x) + log(1+exp(log(y)-log(x)))
+    # Usage: log(x+y) = smoothmax(log(x),log(y)) := log(x) + log(1+exp(log(y)-log(x)))
     smoothmax = lambda x,y: x + torch.log(1+torch.exp(y-x))
 
     # Samples
@@ -105,8 +105,12 @@ if __name__ == '__main__':
     H = 100
     disc = 0.99
     pol = Gauss(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)
+    pol2 = Gauss(4,1, mu_init=[1.,1.,1.,1.], learn_std=True)
     
     batch = generate_batch(env, pol, H, N)
     print(importance_weights(batch, pol, pol.get_flat()))
-    print(multiple_importance_weights(batch[0:2], pol, pol.get_flat(),1))
-    print(multiple_importance_weights(batch[0:2], pol, [pol.get_flat(),pol.get_flat()],[0.5,0.5]))
+    print(multiple_importance_weights(batch, pol, pol,1))
+    print(multiple_importance_weights(batch, pol, [pol,pol], [0.5,0.5]))
+
+    print(importance_weights(batch, pol, pol2.get_flat()))
+    print(multiple_importance_weights(batch, pol2, pol,1))
