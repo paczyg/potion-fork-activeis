@@ -11,6 +11,7 @@ import torch
 import time
 import csv
 import warnings
+import json
 from potion.common.misc_utils import maybe_make_dir
 
 class Logger():
@@ -29,6 +30,8 @@ class Logger():
             with open(self.directory + '/' + self.name + '_info.txt', 'w') as info_file:
                 for key, val in row.items():
                     info_file.write(key + ':\t' + str(val) + '\n')
+            with open(self.directory + '/' + self.name + '_info.json', 'w') as info_file:
+                json.dump(row, info_file)
         except:
             warnings.warn('Could not write info file!')
         
