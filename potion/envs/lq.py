@@ -22,18 +22,28 @@ class LQ(gym.Env):
         'video.frames_per_second': 30
     }
 
-    def __init__(self, ds=1, da=1):
-        self.ds = ds #state dimension
-        self.da = da #action dimension
-        self.horizon = 10 #task horizon (reset is not automatic!)
-        self.gamma = 0.9 #discount factor
-        self.max_pos = 1.0 * np.ones(self.ds) #max state for clipping
-        self.max_action = 1.0 * np.ones(self.da) #max action for clipping 
-        self.sigma_noise = 0 * np.eye(self.ds) #std dev of environment noise
-        self.A = np.eye(self.ds)
-        self.B = np.eye(self.ds, self.da)
-        self.Q = 1 * np.eye(self.ds)
-        self.R = 1 * np.eye(self.da)
+    def __init__(self, ds=1, da=1, *, random=False):
+        self.horizon        = 10 #task horizon (reset is not automatic!)
+        self.gamma          = 0.9 #discount factor
+        self.ds             = ds #state dimension
+        self.da             = da #action dimension
+        self.max_pos        = 1.0 * np.ones(self.ds) #max state for clipping
+        self.max_action     = 1.0 * np.ones(self.da) #max action for clipping 
+        self.sigma_noise    = 0 * np.eye(self.ds) #std dev of environment noise
+        
+        if random:
+            A = np.random.rand(ds,ds)
+            B = np.random.rand(ds,da)
+            Q = np.random.rand(ds,ds)
+            Q = Q.T @ Q
+            R = np.random.rand(da,da)
+            R = R.T @ R + da*np.eye(da)
+            R = R / np.linalg.norm(R)
+        else:
+            self.A = np.eye(self.ds)
+            self.B = np.eye(self.ds, self.da)
+            self.Q = np.eye(self.ds)
+            self.R = np.eye(self.da)
 
         #Gym attributes
         self.viewer = None
