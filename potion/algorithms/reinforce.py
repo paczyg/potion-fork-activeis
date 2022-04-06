@@ -7,17 +7,16 @@ REINFORCE family of algorithms (actor-only policy gradient)
 import math
 import torch
 import time
-import copy
 
 from potion.simulation.trajectory_generators import generate_batch
 from potion.common.misc_utils import performance, avg_horizon, mean_sum_info
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator, egpomdp_estimator
-from potion.estimation.offpolicy_gradients import off_gpomdp_estimator, _shallow_multioff_gpomdp_estimator
+from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estimator
 from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.logger import Logger
-from potion.common.misc_utils import clip, seed_all_agent, concatenate
+from potion.common.misc_utils import seed_all_agent, concatenate
 from potion.meta.steppers import ConstantStepper
-from potion.algorithms.ce_optimization import argmin_CE, get_alphas
+from potion.algorithms.ce_optimization import argmin_CE, get_alphas, var_mean
 
 def reinforce(env, policy, horizon, *,
                     batchsize = 100, 
@@ -68,6 +67,7 @@ def reinforce(env, policy, horizon, *,
     shallow: whether to employ pre-computed score functions (only available for
         shallow policies)
     seed: random seed (None for random behavior)
+    estimate_var: #TODO
     test_batchsize: number of test trajectories used to evaluate the 
         corresponding deterministic policy at each iteration. If 0 or False, no 
         test is performed
@@ -82,9 +82,6 @@ def reinforce(env, policy, horizon, *,
         on a sample trajectory. If False, no rendering happens
     verbose: level of verbosity (0: only logs; 1: normal; 2: maximum)
     """
-    #Defaults
-    if action_filter is None:
-        action_filter = clip(env)
     
     #Seed agent
     if seed is not None:
@@ -122,6 +119,7 @@ def reinforce(env, policy, horizon, *,
     ]
     if estimate_var:
         log_keys.append('SampleVar')
+        log_keys.append('VarMean')
     if log_params:
         log_keys += ['param%d' % i for i in range(policy.num_params())]
     if log_grad:
@@ -165,8 +163,9 @@ def reinforce(env, policy, horizon, *,
         #Collect trajectories
         # ===================
         if n_offpolicy_opt > 0:
-            # Off-policy optimization
+            # Off-policy
 
+            # Cross-Entropy optimization for off-policies
             if biased_offpolicy:
                 # Resure CE samples for final offpolicy estimation
                 N_per_it = math.ceil(batchsize / (n_offpolicy_opt+1))
@@ -174,40 +173,44 @@ def reinforce(env, policy, horizon, *,
                 # Use N/2 samples for CE, and keep N/2 samples for offpolicy estimation
                 N_per_it = math.ceil((batchsize/2) / n_offpolicy_opt)
 
-            mis_policies = [policy]
-            mis_batches  = [generate_batch(env, policy, horizon, N_per_it, 
-                                            action_filter=None, 
-                                            seed=seed, 
-                                            n_jobs=False)]
+            ce_policies = [policy]
+            ce_batches  = [generate_batch(env, policy, horizon, N_per_it, 
+                                          action_filter=action_filter, 
+                                          seed=seed, 
+                                          n_jobs=False)]
             for _ in range(n_offpolicy_opt):
-                opt_policy = argmin_CE(env, policy, mis_policies, mis_batches, 
-                                        estimator=estimator,
-                                        optimize_mean=True,
-                                        optimize_variance=False)    #TODO: ottimizzare variance (ma non usare stimatore off-policy Matteo per il gradiente)
-                mis_policies.append(opt_policy)
-                mis_batches.append(generate_batch(env, opt_policy, horizon, N_per_it, 
-                                                  action_filter=None, 
-                                                  seed=seed, 
-                                                  n_jobs=False))
+                opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
+                                       estimator=estimator,
+                                       optimize_mean=True,
+                                       optimize_variance=True)
+                ce_policies.append(opt_ce_policy)
+                ce_batches.append(generate_batch(env, opt_ce_policy, horizon, N_per_it, 
+                                                 action_filter=action_filter, 
+                                                 seed=seed, 
+                                                 n_jobs=False))
 
+            # Selection of batches and off-policies used during CE optimization
             if biased_offpolicy:
-                if not defensive:
-                    del mis_policies[0]
-                    del mis_batches[0]
                 # Resure CE samples for final offpolicy estimation
-                batch   = concatenate(mis_batches)
-                iws     = multiple_importance_weights(batch, policy, mis_policies, get_alphas(mis_batches))  #[N]
+                if defensive:
+                    off_policies = ce_policies
+                    off_batches  = ce_batches
+                else:
+                    off_policies = ce_policies[1:]
+                    off_batches  = ce_batches[1:]
             else:
                 # Use N/2 samples for offpolicy estimation (first N/2 were used for CE)
-                batch = generate_batch(env, opt_policy, horizon, batchsize/2,
-                                       action_filter=None, 
-                                       seed=seed, 
-                                       n_jobs=False)
-                iws     = multiple_importance_weights(batch, policy, opt_policy, 1)  #[N]
+                off_batch = generate_batch(env, opt_ce_policy, horizon, batchsize/2,
+                                           action_filter=action_filter, 
+                                           seed=seed, 
+                                           n_jobs=False)
+                off_policies = [opt_ce_policy]
+                off_batches  = [off_batch]
                 if defensive:
                     # Use also the first samples (<N/2) from target policy for the first estimation of CE
-                    batch = concatenate([mis_batches[0], batch])
-                    iws   = multiple_importance_weights(batch, policy, [policy, opt_policy], get_alphas([mis_batches[0], batch]))  #[N]
+                    off_policies = [policy, opt_ce_policy]
+                    off_batches  = [ce_batches[0], off_batch]
+            batch = concatenate(off_batches)
             
         else:
             # On-policy
@@ -216,7 +219,6 @@ def reinforce(env, policy, horizon, *,
                                    seed=seed, 
                                    n_jobs=parallel,
                                    key=info_key)
-            iws = torch.ones(batchsize)
         
         # TODO: dove le mettiamo queste? Devono valutae il batch raccolto con IS?
         log_row['Perf']         = performance(batch, disc)  #FIXME: queste dovrebbero essere le performance della policy target (?)
@@ -251,55 +253,34 @@ def reinforce(env, policy, horizon, *,
             
         elif n_offpolicy_opt > 0:
             # Off-policy estimation
-                # if estimator == 'gpomdp' and entropy_coeff == 0:
-                #     #TODO: aggiungere gpomdp offpolicy estimator
-                #     #TODO: aggiungere baseline
-                #     grad_samples = gpomdp_estimator(batch, disc, policy, 
-                #                                         baselinekind='zero', 
-                #                                         shallow=shallow,
-                #                                         result='samples')
-                #     grad = torch.mean(torch.einsum('i,ij->ij', iws, grad_samples), 0)
-                # else:
-                #     raise NotImplementedError
-            # if biased_offpolicy:
-            #     # TODO: offpolicy estimation with correct baseline
-            #     grad = torch.mean(torch.einsum('i,ij->ij', iws, grad_samples), 0)
-            # elif not biased_offpolicy and defensive:
-            #     grad = torch.mean(torch.einsum('i,ij->ij', iws, grad_samples), 0)
-            if not biased_offpolicy and not defensive and n_offpolicy_opt==1:
-                #NOTE funziona solo con policy con stessa varianza della target
-                # il batch è stato generato dalla policy ottimizzata CE
-                target_params = policy.get_loc_params()
-                grad = off_gpomdp_estimator(batch, disc, opt_policy, target_params,
-                                            baselinekind=baseline, 
-                                            result='mean',
-                                            shallow=shallow)
-            elif not biased_offpolicy and defensive:
-                grad = _shallow_multioff_gpomdp_estimator(batch, disc, policy, [policy, opt_policy], get_alphas([mis_batches[0], batch]),
-                                                    baselinekind=baseline, 
-                                                    result='mean')
-            elif not biased_offpolicy and not defensive:
-                grad = _shallow_multioff_gpomdp_estimator(batch, disc, policy, opt_policy, 1,
-                                                    baselinekind=baseline, 
-                                                    result='mean')
-        
-        # Variance of gradients samples
+            if estimator == 'gpomdp' and entropy_coeff == 0 and shallow:
+                grad_samples = _shallow_multioff_gpomdp_estimator(
+                    batch, disc, policy, off_policies, get_alphas(off_batches),
+                    baselinekind=baseline, 
+                    result='samples'
+                )
+                grad = torch.mean(grad_samples,0)
+            elif estimator == 'reinforce':
+                #TODO offpolicy reinforce
+                raise NotImplementedError
+            else:
+                raise NotImplementedError
+
         if estimate_var:
-            centered = torch.einsum('i,ij->ij', iws, grad_samples) - grad.unsqueeze(0)
+            # Variance of gradients samples
+            centered = grad_samples - grad.unsqueeze(0)
             grad_cov = (batchsize/(batchsize - 1) * 
                         torch.mean(torch.bmm(centered.unsqueeze(2), 
                                             centered.unsqueeze(1)),0))
             grad_var = torch.sum(torch.diag(grad_cov)).item() #for humans
+            log_row['SampleVar'] = grad_var
         
-        # Variance of the sample mean
-        # TODO: E? utile? Da salvare?
-        # log_row['VarMean'] = var_mean(grad_samples,iws)
+            # Variance of the sample mean
+            log_row['VarMean'] = var_mean(grad_samples)[1]
 
         if verbose > 1:
             print('Gradients: ', grad)
         log_row['GradNorm'] = torch.norm(grad).item()
-        if estimate_var:
-            log_row['SampleVar'] = grad_var
         
         #Select meta-parameters
         stepsize = stepper.next(grad)
