@@ -32,13 +32,13 @@ class LQ(gym.Env):
         self.sigma_noise    = 0 * np.eye(self.ds) #std dev of environment noise
         
         if random:
-            A = np.random.rand(ds,ds)
-            B = np.random.rand(ds,da)
-            Q = np.random.rand(ds,ds)
-            Q = Q.T @ Q
-            R = np.random.rand(da,da)
-            R = R.T @ R + da*np.eye(da)
-            R = R / np.linalg.norm(R)
+            self.A = np.random.rand(ds,ds)
+            self.B = np.random.rand(ds,da)
+            self.Q = np.random.rand(ds,ds)
+            self.Q = self.Q.T @ self.Q
+            self.R = np.random.rand(da,da)
+            self.R = self.R.T @ self.R + da*np.eye(da)
+            self.R = self.R / np.linalg.norm(self.R)
         else:
             self.A = np.eye(self.ds)
             self.B = np.eye(self.ds, self.da)
