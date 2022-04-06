@@ -8,7 +8,9 @@ Policy gradient stimators
 import functools
 import math
 import torch
+
 import potion.common.torch_utils as tu
+import potion.algorithms.ce_optimization as ce_opt
 from potion.common.misc_utils import unpack, discount
 from potion.common.torch_utils import tensormat, jacobian
 from potion.estimation.moments import incr_mean, incr_var
@@ -204,12 +206,14 @@ def _incr_shallow_gpomdp_estimator(traj, disc, policy, baselinekind='peters', re
         
 """Testing"""
 if __name__ == '__main__':
+    import gym.spaces
+
+    import potion.envs
     from potion.actors.continuous_policies import ShallowGaussianPolicy as Gauss
     from potion.simulation.trajectory_generators import generate_batch
     from potion.common.misc_utils import seed_all_agent
-    import potion.envs
-    import gym.spaces
     from potion.estimation.gradients import gpomdp_estimator
+    from potion.estimation.importance_sampling import multiple_importance_weights, importance_weights
     
     env = gym.make('ContCartPole-v0')
     env.seed(0)
@@ -224,7 +228,6 @@ if __name__ == '__main__':
     
     # Compare on- and off-policy evaluations with a single policy
     # -----------------------------------------------------------
-    from potion.estimation.importance_sampling import multiple_importance_weights
     for b in ['zero','peters']:
         on = gpomdp_estimator(batch, disc, pol_b, baselinekind=b, 
                             shallow=True)
@@ -242,17 +245,26 @@ if __name__ == '__main__':
     # Compare off-policy evaluations by means of importance weights external to the estimator and inside the estimator
     # ----------------------------------------------------------------------------------------------------------------
     for b in ['zero','peters']:
-        off = off_gpomdp_estimator(batch, disc, pol_b, pol_t.get_flat(), 
-                                baselinekind=b,
-                                shallow=True)
+        off1_samples = off_gpomdp_estimator(batch, disc, pol_b, pol_t.get_flat(),
+                                           result='samples',
+                                           baselinekind=b,
+                                           shallow=True)
+        off1 = torch.mean(off1_samples,0)
+        off1_varmean = ce_opt.var_mean(off1_samples)[1]
 
-        off_samples = gpomdp_estimator(batch, disc, pol_t, baselinekind=b, shallow=True, result='samples')
+        off2_samples = _shallow_multioff_gpomdp_estimator(batch, disc, pol_t, pol_b, 1,
+                                                          result='samples',
+                                                          baselinekind=b)
+        off2 = torch.mean(off2_samples,0)
+        off2_varmean = ce_opt.var_mean(off2_samples)[1]
+
+        #NOTE: Here the only usable baseline should be zero, otherwise other baselines would not consider the contributions of the iws
+        on_samples = gpomdp_estimator(batch, disc, pol_t, baselinekind=b, shallow=True, result='samples')
         iws   = multiple_importance_weights(batch, pol_t, pol_b, 1)
-        off_iws = torch.mean(torch.einsum('i,ij->ij', iws, off_samples), 0)
+        # iws = importance_weights(batch, pol_b, pol_t.get_flat())
+        off_iws = torch.mean(torch.einsum('i,ij->ij', iws, on_samples), 0)
+        off_iws_varmean = ce_opt.var_mean(on_samples,iws)[1]
 
-        off_multi = _shallow_multioff_gpomdp_estimator(batch, disc, pol_t, pol_b, 1,
-                                            baselinekind=b, 
-                                            result='mean')
-
-        print(f"{off}\n{off_iws}\n{off_multi}\n") #FIXME: dovrebbero essere uguali?? Forse no, perchè l'implementazione con iws non è per-step       
+        print(f"Means:\n{off1}\n{off2}\n{off_iws}\n")
+        print(f"Variances of means:\n{off1_varmean}\n{off2_varmean}\n{off_iws_varmean}\n")
     
