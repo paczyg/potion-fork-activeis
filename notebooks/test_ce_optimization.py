@@ -11,7 +11,9 @@ from potion.algorithms.ce_optimization import algo, argmin_CE
 # ===========
 from potion.envs.lq import LQ
 
-env = LQ(5,1)
+ds = 1
+env = LQ(ds,1)
+env.horizon=1
 state_dim  = sum(env.observation_space.shape)
 action_dim = sum(env.action_space.shape)
 
@@ -23,7 +25,7 @@ from potion.actors.continuous_policies import ShallowGaussianPolicy
 policy = ShallowGaussianPolicy(
     state_dim,                      # input size
     action_dim,                     # output size
-    mu_init = 0.0*torch.ones(5),    # initial mean parameters
+    mu_init = 0.0*torch.ones(ds),   # initial mean parameters
     logstd_init = 0.0,              # log of standard deviation
     learn_std = False               # We are NOT going to learn the variance parameter
 )
@@ -33,10 +35,10 @@ policy = ShallowGaussianPolicy(
 from potion.simulation.trajectory_generators import generate_batch
 from potion.common.misc_utils import clip, seed_all_agent
 
-seed = None
-# seed = 42
-# env.seed(seed)
-# seed_all_agent(seed)
+# seed = None
+seed = 42
+env.seed(seed)
+seed_all_agent(seed)
 
 batchsize = 100
 
@@ -58,9 +60,16 @@ print(f"theta* = {q.get_loc_params()}, logstd* = {q.logstd}")
 #%% Test Algorithm
 # ================
 target_policy = policy
-N_per_it = 5
-n_ce_opt = 20
-results, stats, info = algo(env, target_policy, N_per_it, n_ce_opt, optimize_mean=True, optimize_variance=True)
+N_per_it = 20
+n_ce_opt = 5
+results, stats, info = algo(env, target_policy, N_per_it, n_ce_opt, 
+                            estimator='gpomdp',
+                            baseline='zero',
+                            action_filter=None,
+                            window=None,
+                            optimize_mean=True,
+                            optimize_variance=True,
+                            run_mc_comparison = True)
 print(f"{results}, \n {pd.DataFrame(stats)}")
 
 stats = pd.DataFrame(stats)
@@ -77,9 +86,9 @@ plt.xlabel('n_ce_iterations')
 plt.show()
 
 #%% PLOT Variance reduction VS parameters change
-N_per_it_list = [10, 50, 100]
-n_ce_opt_list = [1, 5, 10]
-nExperiments = 3
+N_per_it_list = [100]
+n_ce_opt_list = [1]
+nExperiments = 5
 
 target_policy = policy
 mis_policies  = 1 * [policy]
@@ -89,7 +98,14 @@ res = []
 for exp in range(nExperiments):
     for N_per_it in N_per_it_list:
         for n_ce_opt in n_ce_opt_list:
-            _results, _, _info = algo(env, target_policy, N_per_it, n_ce_opt, optimize_mean=True, optimize_variance=True)
+            _results, _, _info = algo(env, target_policy, N_per_it, n_ce_opt, 
+                                      estimator='gpomdp',
+                                      baseline='zero',
+                                      action_filter=None,
+                                      window=None,
+                                      optimize_mean=True,
+                                      optimize_variance=True,
+                                      run_mc_comparison = True)
             _results.update({'exp': exp})
             res.append({**_results, **_info})
 

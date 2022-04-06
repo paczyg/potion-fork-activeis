@@ -8,7 +8,7 @@ from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.misc_utils import unpack, concatenate
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator
 from potion.simulation.trajectory_generators import generate_batch
-
+from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estimator
 
 def gradients(batch, discount, policy, estimator='reinforce', baseline='zero'):
     """
@@ -144,8 +144,9 @@ def var_mean(X,iws=None):
     return cov, var
 
 def algo(env, target_policy, N_per_it, n_ce_iterations, *,
-         estimator='reinforce',
+         estimator='gpomdp',
          baseline='zero',
+         action_filter=None,
          window=None,
          optimize_mean=True,
          optimize_variance=True,
@@ -167,6 +168,7 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
         'N_tot':            N_per_it*(n_ce_iterations+1),
         'Estimator':        estimator,
         'Baseline':         baseline,
+        'action_filter':    action_filter,
         'Env':              str(env), 
     }
     stats = []
@@ -179,7 +181,7 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
     # ------------------------------------------------
     mis_policies = [target_policy]
     mis_batches  = [generate_batch(env, target_policy, env.horizon, N_per_it, 
-                                   action_filter=None, 
+                                   action_filter=action_filter, 
                                    seed=seed, 
                                    n_jobs=False)]
     for _ in range(n_ce_iterations):
@@ -188,7 +190,7 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
         mis_policies.append(opt_policy)
         mis_batches.append(
             generate_batch(env, opt_policy, env.horizon, N_per_it, 
-                           action_filter=None, 
+                           action_filter=action_filter, 
                            seed=seed, 
                            n_jobs=False))
         stats.append({
@@ -198,21 +200,35 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
 
     # Estimate IS mean, and its variance
     # ----------------------------------
-    batch               = concatenate(mis_batches)
-    iws                 = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches))  #[N]
-    grad_samples        = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline=baseline)        #[N,D]
-    results['grad_is']          = torch.mean(iws[:,None]*grad_samples,0).tolist()
-    _, results['var_grad_is']   = var_mean(grad_samples,iws)
+    batch = concatenate(mis_batches)
+    iws             = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches))  #[N]
+    if estimator == 'gpomdp':
+        grad_samples    = _shallow_multioff_gpomdp_estimator(
+                            concatenate(mis_batches), env.gamma, target_policy, mis_policies, get_alphas(mis_batches),
+                            baselinekind=baseline, 
+                            result='samples'
+                        )   #[N,D]
+        # grad_samples = gpomdp_estimator(batch, env.gamma, target_policy, 
+        #                                         baselinekind=baseline, 
+        #                                         shallow=True,
+        #                                         result='samples')
+    else:
+        #TODO Offpolicy reinforce estimator
+        raise NotImplementedError
+    results['grad_is']      = torch.mean(grad_samples,0).tolist()
+    results['var_grad_is']  = var_mean(grad_samples)[1]
+    # results['grad_is']      = torch.mean(iws[:,None]*grad_samples,0).tolist()
+    # results['var_grad_is']  = var_mean(grad_samples,iws)[1]
 
     # Estimate MC mean, and its variance (for further comparisons)
     # ------------------------------------------------------------
     if run_mc_comparison:
         mc_batch = generate_batch(env, target_policy, env.horizon, N_per_it*(n_ce_iterations+1), 
-                                  action_filter=None, 
+                                  action_filter=action_filter, 
                                   seed=seed, 
                                   n_jobs=False)
-        grad_samples    = gradients(mc_batch, env.gamma, target_policy, estimator=estimator, baseline=baseline)
-        results['grad_mc']           = torch.mean(grad_samples,0).tolist()
-        _, results['var_grad_mc']    = var_mean(grad_samples)
+        grad_samples            = gradients(mc_batch, env.gamma, target_policy, estimator=estimator, baseline=baseline)
+        results['grad_mc']      = torch.mean(grad_samples,0).tolist()
+        results['var_grad_mc']  = var_mean(grad_samples)[1]
 
     return results, stats, algo_info
