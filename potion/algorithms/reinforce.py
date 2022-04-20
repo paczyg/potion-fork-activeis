@@ -220,8 +220,7 @@ def reinforce(env, policy, horizon, *,
                                    n_jobs=parallel,
                                    key=info_key)
         
-        # TODO: dove le mettiamo queste? Devono valutae il batch raccolto con IS?
-        log_row['Perf']         = performance(batch, disc)  #FIXME: queste dovrebbero essere le performance della policy target (?)
+        log_row['Perf']         = performance(batch, disc)
         log_row['Info']         = mean_sum_info(batch).item()
         log_row['UPerf']        = performance(batch, disc=1.)
         log_row['AvgHorizon']   = avg_horizon(batch)
