@@ -10,7 +10,6 @@ import math
 import torch
 
 import potion.common.torch_utils as tu
-import potion.algorithms.ce_optimization as ce_opt
 from potion.common.misc_utils import unpack, discount
 from potion.common.torch_utils import tensormat, jacobian
 from potion.estimation.moments import incr_mean, incr_var
@@ -244,6 +243,8 @@ if __name__ == '__main__':
 
     # Compare off-policy evaluations by means of importance weights external to the estimator and inside the estimator
     # ----------------------------------------------------------------------------------------------------------------
+    import potion.algorithms.ce_optimization as ce_opt
+
     for b in ['zero','peters']:
         off1_samples = off_gpomdp_estimator(batch, disc, pol_b, pol_t.get_flat(),
                                            result='samples',
