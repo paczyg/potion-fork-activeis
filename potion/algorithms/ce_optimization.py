@@ -51,6 +51,7 @@ def get_alphas(mis_batches):
 
 def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
               estimator='gpomdp',
+              baseline = 'avg',
               optimize_mean = True,
               optimize_variance=True):
     """
@@ -76,7 +77,7 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
     else:
         mu_features = states                            #[N,H,FS]
     
-    grad_samples = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline='zero')
+    grad_samples = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline=baseline)
     coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
                     * torch.linalg.norm(grad_samples,dim=1)    #[N]
 
@@ -143,13 +144,14 @@ def var_mean(X,iws=None):
 
     return cov, var
 
-def algo(env, target_policy, N_per_it, n_ce_iterations, *,
+def algo(env, target_policy, n_per_it, n_ce_iterations, *,
          estimator='gpomdp',
          baseline='zero',
          action_filter=None,
          window=None,
          optimize_mean=True,
          optimize_variance=True,
+         reuse_samples = True,
          run_mc_comparison = True):
     """
     Algorithm 2
@@ -163,13 +165,14 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
     # Logs, statistics and information
     # --------------------------------
     algo_info = {
-        'N_per_it':         N_per_it,
+        'N_per_it':         n_per_it,
         'n_ce_iterations':  n_ce_iterations,
-        'N_tot':            N_per_it*(n_ce_iterations+1),
+        'N_tot':            n_per_it*(n_ce_iterations+1),
         'Estimator':        estimator,
         'Baseline':         baseline,
         'action_filter':    action_filter,
-        'Env':              str(env), 
+        'reuse_samples':    reuse_samples,
+        'Env':              str(env)
     }
     stats = []
     results = dict.fromkeys(['grad_mc', 'grad_is', 'var_grad_mc', 'var_grad_is'])
@@ -180,16 +183,16 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
     # Compute optimal importance sampling distributions
     # ------------------------------------------------
     mis_policies = [target_policy]
-    mis_batches  = [generate_batch(env, target_policy, env.horizon, N_per_it, 
+    mis_batches  = [generate_batch(env, target_policy, env.horizon, n_per_it, 
                                    action_filter=action_filter, 
                                    seed=seed, 
                                    n_jobs=False)]
     for _ in range(n_ce_iterations):
         opt_policy = argmin_CE(env, target_policy, mis_policies[window:], mis_batches[window:], 
-                               estimator=estimator, optimize_mean=optimize_mean, optimize_variance=optimize_variance)
+                               estimator=estimator, baseline=baseline, optimize_mean=optimize_mean, optimize_variance=optimize_variance)
         mis_policies.append(opt_policy)
         mis_batches.append(
-            generate_batch(env, opt_policy, env.horizon, N_per_it, 
+            generate_batch(env, opt_policy, env.horizon, n_per_it, 
                            action_filter=action_filter, 
                            seed=seed, 
                            n_jobs=False))
@@ -200,30 +203,40 @@ def algo(env, target_policy, N_per_it, n_ce_iterations, *,
 
     # Estimate IS mean, and its variance
     # ----------------------------------
-    batch = concatenate(mis_batches)
-    iws             = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches))  #[N]
+    if not reuse_samples:
+        del mis_batches[:-1]
+        del mis_policies[:-1]
+
     if estimator == 'gpomdp':
         grad_samples    = _shallow_multioff_gpomdp_estimator(
                             concatenate(mis_batches), env.gamma, target_policy, mis_policies, get_alphas(mis_batches),
                             baselinekind=baseline, 
                             result='samples'
                         )   #[N,D]
+        results['grad_is']      = torch.mean(grad_samples,0).tolist()
+        results['var_grad_is']  = var_mean(grad_samples)[1]
+        # GPOMDP with importance ratios
         # grad_samples = gpomdp_estimator(batch, env.gamma, target_policy, 
         #                                         baselinekind=baseline, 
         #                                         shallow=True,
         #                                         result='samples')
+        # results['grad_is']      = torch.mean(iws[:,None]*grad_samples,0).tolist()
+        # results['var_grad_is']  = var_mean(grad_samples,iws)[1]
+    elif estimator == 'reinforce':
+        grad_samples = reinforce_estimator(concatenate(mis_batches), env.gamma, target_policy, 
+                                           baselinekind=baseline, 
+                                           shallow=True,
+                                           result='samples') #[N]
+        iws = multiple_importance_weights(concatenate(mis_batches), target_policy, mis_policies, get_alphas(mis_batches))  #[N]
+        results['grad_is']      = torch.mean(iws[:,None]*grad_samples,0).tolist()
+        results['var_grad_is']  = var_mean(grad_samples,iws)[1]
     else:
-        #TODO Offpolicy reinforce estimator
         raise NotImplementedError
-    results['grad_is']      = torch.mean(grad_samples,0).tolist()
-    results['var_grad_is']  = var_mean(grad_samples)[1]
-    # results['grad_is']      = torch.mean(iws[:,None]*grad_samples,0).tolist()
-    # results['var_grad_is']  = var_mean(grad_samples,iws)[1]
 
     # Estimate MC mean, and its variance (for further comparisons)
     # ------------------------------------------------------------
     if run_mc_comparison:
-        mc_batch = generate_batch(env, target_policy, env.horizon, N_per_it*(n_ce_iterations+1), 
+        mc_batch = generate_batch(env, target_policy, env.horizon, n_per_it*(n_ce_iterations+1), 
                                   action_filter=action_filter, 
                                   seed=seed, 
                                   n_jobs=False)

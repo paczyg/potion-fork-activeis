@@ -10,14 +10,17 @@ from potion.envs.lq import LQ
 from potion.actors.continuous_policies import ShallowGaussianPolicy
 
 """
-Test definitions
+***************************************************************************************************
+                                        Test definitions 
+***************************************************************************************************
+
 """
-def test_variable_mu_logstd(env, N_per_it, n_ce_iterations, mu_init_list, logstd_init_list, *,
+def test_variable_mu_logstd(env, n_per_it, n_ce_iterations, mu_init_list, logstd_init_list, *,
                             estimator='gpomdp', baseline='zero', action_filter=None):
 
     test_info={
         'env'               :str(env),
-        'N_per_it'          :N_per_it, 
+        'n_per_it'          :n_per_it, 
         'n_ce_iterations'   :n_ce_iterations,
         'mu_init_list'      :mu_init_list,
         'logstd_init_list'  :logstd_init_list,
@@ -41,7 +44,7 @@ def test_variable_mu_logstd(env, N_per_it, n_ce_iterations, mu_init_list, logstd
             _result, _, _ = algo(
                 env,
                 target_policy,
-                N_per_it,
+                n_per_it,
                 n_ce_iterations, 
                 estimator=estimator,
                 baseline=baseline,
@@ -49,6 +52,7 @@ def test_variable_mu_logstd(env, N_per_it, n_ce_iterations, mu_init_list, logstd
                 window=None,
                 optimize_mean=True,
                 optimize_variance=True,
+                reuse_samples = True,
                 run_mc_comparison = True
             )
 
@@ -60,12 +64,12 @@ def test_variable_mu_logstd(env, N_per_it, n_ce_iterations, mu_init_list, logstd
      
     return pd.DataFrame(results), test_info
 
-def test_variable_horizon(env, N_per_it, n_ce_iterations, mu_init, logstd_init, horizon_list,*,
+def test_variable_horizon(env, n_per_it, n_ce_iterations, mu_init, logstd_init, horizon_list,*,
              estimator='gpomdp', baseline='zero', action_filter=None):
 
     test_info={
         'env'               :str(env),
-        'N_per_it'          :N_per_it, 
+        'n_per_it'          :n_per_it, 
         'n_ce_iterations'   :n_ce_iterations,
         'mu_init'           :mu_init.item(),
         'logstd_init'       :logstd_init.item(),
@@ -89,7 +93,7 @@ def test_variable_horizon(env, N_per_it, n_ce_iterations, mu_init, logstd_init, 
         _result, _, _ = algo(
             env,
             target_policy,
-            N_per_it,
+            n_per_it,
             n_ce_iterations, 
             estimator=estimator,
             baseline=baseline,
@@ -97,6 +101,7 @@ def test_variable_horizon(env, N_per_it, n_ce_iterations, mu_init, logstd_init, 
             window=None,
             optimize_mean=True,
             optimize_variance=True,
+            reuse_samples = True,
             run_mc_comparison = True
         )
 
@@ -130,11 +135,11 @@ def test_variable_batch(env, N_per_it_list, n_ce_iterations, mu_init, logstd_ini
     )
 
     results = []
-    for N_per_it in N_per_it_list:
+    for n_per_it in N_per_it_list:
         _result, _, _ = algo(
             env,
             target_policy,
-            N_per_it,
+            n_per_it,
             n_ce_iterations, 
             estimator=estimator,
             baseline=baseline,
@@ -142,18 +147,21 @@ def test_variable_batch(env, N_per_it_list, n_ce_iterations, mu_init, logstd_ini
             window=None,
             optimize_mean=True,
             optimize_variance=True,
+            reuse_samples = True,
             run_mc_comparison = True
         )
 
         _result.update({'grad_mc': _result['grad_mc'][0]})
         _result.update({'grad_is': _result['grad_is'][0]})
-        _result.update({'N_per_it': N_per_it})
+        _result.update({'n_per_it': n_per_it})
         results.append(_result)
      
     return pd.DataFrame(results), test_info
 
 """
-Utilities
+***************************************************************************************************
+                                            Utilities 
+***************************************************************************************************
 """ 
 def repeat_experiments(nExperiments, test_fun):
     results = []
@@ -169,7 +177,7 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
         ax=plt.gca()
 
     stats = df.groupby(xkey)[key].agg(['mean', 'std', 'count'])
-    xs = df[xkey].unique()
+    xs = stats.index.values
     ys = stats['mean']
     ci_lb, ci_ub = st.norm.interval(0.68, loc=stats['mean'], scale=stats['std']/np.sqrt(stats['count']))
     ax.plot(xs,ys, *plt_args, **plt_kwargs)
@@ -178,6 +186,12 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
 # fig.supxlabel('common_x')
 # plt.savefig("image.png",bbox_inches='tight')
 
+
+"""
+***************************************************************************************************
+                                                Main
+***************************************************************************************************
+"""
 if __name__ == '__main__':
     do_plot = True
 
@@ -193,9 +207,11 @@ if __name__ == '__main__':
     # -----------------------------------------------------
     test1_res, test1_info = repeat_experiments(
         100,
-        lambda: test_variable_mu_logstd(env,10,1,
+        lambda: test_variable_mu_logstd(env,20,1,
                                         [x*torch.ones(ds) for x in [-1.0, -0.5, 0.0, 0.5, 1.0]],
-                                        [torch.zeros(ds)])
+                                        [torch.zeros(ds)],
+                                        estimator='gpomdp',
+                                        baseline='zero')
     )
 
     if do_plot:
@@ -219,9 +235,11 @@ if __name__ == '__main__':
     # ---------------------------------------------
     test2_res, test2_info = repeat_experiments(
         100,
-        lambda: test_variable_mu_logstd(env,10,1,
+        lambda: test_variable_mu_logstd(env,20,1,
                                         [torch.zeros(ds)],
-                                        [x*torch.ones(ds) for x in [-1.0, -0.5, 0.0, 0.5, 1.0]])
+                                        [x*torch.ones(ds) for x in [-1.0, -0.5, 0.0, 0.5, 1.0]],
+                                        estimator='gpomdp',
+                                        baseline='zero' )
     )
 
     if do_plot:
@@ -245,8 +263,10 @@ if __name__ == '__main__':
     # ----------------------------------------------------
     test3_res, test3_info = repeat_experiments(
         100,
-        lambda: test_variable_horizon(env,10,1, torch.zeros(ds), torch.zeros(ds),
-                                      [1,2,5,10])
+        lambda: test_variable_horizon(env,20,1, torch.zeros(ds), torch.zeros(ds),
+                                      [1,2,5,10],
+                                      estimator='gpomdp',
+                                      baseline='zero' )
     )
     if do_plot:
         fig,axes = plt.subplots(1,2)
@@ -269,19 +289,21 @@ if __name__ == '__main__':
     # ----------------------------------------------------
     test4_res, test4_info = repeat_experiments(
         100,
-        lambda: test_variable_batch(env,[5,10,30,60],1, torch.zeros(ds), torch.zeros(ds))
+        lambda: test_variable_batch(env,[5,10,30,60],1, torch.zeros(ds), torch.zeros(ds),
+                                    estimator='gpomdp',
+                                    baseline='zero')
     )
     if do_plot:
         fig,axes = plt.subplots(1,2)
 
-        plot_ci(test4_res,'grad_is','N_per_it', axes[0], 'o-')
-        plot_ci(test4_res,'grad_mc','N_per_it', axes[0], 's--')
-        axes[0].set(xlabel='N_per_it', ylabel='mean of gradients')
+        plot_ci(test4_res,'grad_is','n_per_it', axes[0], 'o-')
+        plot_ci(test4_res,'grad_mc','n_per_it', axes[0], 's--')
+        axes[0].set(xlabel='n_per_it', ylabel='mean of gradients')
         axes[0].legend(["IS", "MC"])
 
-        plot_ci(test4_res,'var_grad_is','N_per_it', axes[1], 'o-')
-        plot_ci(test4_res,'var_grad_mc','N_per_it', axes[1], 's--')
-        axes[1].set(xlabel='N_per_it', ylabel='var of mean of gradients')
+        plot_ci(test4_res,'var_grad_is','n_per_it', axes[1], 'o-')
+        plot_ci(test4_res,'var_grad_mc','n_per_it', axes[1], 's--')
+        axes[1].set(xlabel='n_per_it', ylabel='var of mean of gradients')
         axes[1].legend(["IS", "MC"])
 
         fig.tight_layout()

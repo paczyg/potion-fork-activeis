@@ -181,6 +181,7 @@ def reinforce(env, policy, horizon, *,
             for _ in range(n_offpolicy_opt):
                 opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
                                        estimator=estimator,
+                                       baseline=baseline,
                                        optimize_mean=True,
                                        optimize_variance=True)
                 ce_policies.append(opt_ce_policy)
