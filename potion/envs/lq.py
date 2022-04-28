@@ -22,7 +22,7 @@ class LQ(gym.Env):
         'video.frames_per_second': 30
     }
 
-    def __init__(self, ds=1, da=1, *, random=False):
+    def __init__(self, ds=1, da=1, *, random=False, sigma_noise=0):
         self.horizon        = 10 #task horizon (reset is not automatic!)
         self.gamma          = 0.9 #discount factor
         self.ds             = ds #state dimension
