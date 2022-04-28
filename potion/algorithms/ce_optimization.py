@@ -28,7 +28,6 @@ def gradients(batch, discount, policy, estimator='reinforce', baseline='zero'):
     -------
     grad_samples: (#trajectories,#parameters) tensor with gradients
     """
-    #NOTE on-policy gradient estimators, with on-policy baselines
 
     is_shallow = True   # TODO: For now we only deal with shallow policies
     if estimator == 'gpomdp':

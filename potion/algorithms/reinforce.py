@@ -57,9 +57,9 @@ def reinforce(env, policy, horizon, *,
         the action is clipped to satisfy evironmental boundaries
     estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
         suffers from less variance
-    n_offpolicy_opt: #TODO
-    defensive: #TODO
-    biased_offpolicy: #TODO
+    n_offpolicy_opt: number of optimized behavioural policies
+    defensive: whether to use the target policy in the gradient estimation
+    biased_offpolicy: whether to use the samples employed in the cross-entropy optimization in the gradient estimation
     baseline: control variate to be used in the gradient estimator. Either
         'avg' (average reward, default), 'peters' (variance-minimizing) or
         'zero' (no baseline)
@@ -67,7 +67,7 @@ def reinforce(env, policy, horizon, *,
     shallow: whether to employ pre-computed score functions (only available for
         shallow policies)
     seed: random seed (None for random behavior)
-    estimate_var: #TODO
+    estimate_var: whether to estimate the variance of the gradient samples and their average
     test_batchsize: number of test trajectories used to evaluate the 
         corresponding deterministic policy at each iteration. If 0 or False, no 
         test is performed

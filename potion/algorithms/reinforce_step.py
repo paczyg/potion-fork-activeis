@@ -52,9 +52,9 @@ def reinforce_step(env, policy, horizon, *,
         the action is clipped to satisfy evironmental boundaries
     estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
         suffers from less variance
-    n_offpolicy_opt: #TODO
-    defensive: #TODO
-    biased_offpolicy: #TODO
+    n_offpolicy_opt: number of optimized behavioural policies
+    defensive: whether to use the target policy in the gradient estimation
+    biased_offpolicy: whether to use the samples employed in the cross-entropy optimization in the gradient estimation
     baseline: control variate to be used in the gradient estimator. Either
         'avg' (average reward, default), 'peters' (variance-minimizing) or
         'zero' (no baseline)
@@ -62,7 +62,7 @@ def reinforce_step(env, policy, horizon, *,
     shallow: whether to employ pre-computed score functions (only available for
         shallow policies)
     seed: random seed (None for random behavior)
-    estimate_var: #TODO
+    estimate_var: whether to estimate the variance of the gradient samples and their average
     test_batchsize: number of test trajectories used to evaluate the 
         corresponding deterministic policy at each iteration. If 0 or False, no 
         test is performed
@@ -79,24 +79,6 @@ def reinforce_step(env, policy, horizon, *,
     if seed is not None:
         seed_all_agent(seed)
     
-    #Prepare logger
-    # TODO: salvare info algoritmo e policy
-    # algo_info = {
-    #     'Algorithm': 'REINFORCE',
-    #     # 'Estimator': estimator,
-    #     # 'n_offpolicy_opt': n_offpolicy_opt,
-    #     # 'defensive': defensive,
-    #     # 'biased_offpolicy': biased_offpolicy,
-    #     # 'Baseline': baseline,
-    #     'Env': str(env), 
-    #     # 'Horizon': horizon,
-    #     # 'BatchSize': batchsize, 
-    #     # 'Disc': disc, 
-    #     'StepSizeCriterion': str(stepper), 
-    #     # 'Seed': seed,
-    #     'EntropyCoefficient': entropy_coeff
-    # }
-    # logger.write_info({**algo_info, **policy.info()})
     log_keys = [
         'Perf', 
         'UPerf', 
@@ -139,8 +121,8 @@ def reinforce_step(env, policy, horizon, *,
         log_row['TestInfo'] = mean_sum_info(test_batch).item()
         log_row['UTestPerf'] = performance(test_batch, 1)
     
-    #Collect trajectories
-    # ===================
+    # Collect trajectories
+    # ====================
     if n_offpolicy_opt > 0:
         # Off-policy
 
@@ -207,8 +189,8 @@ def reinforce_step(env, policy, horizon, *,
     log_row['Exploration']  = policy.exploration().item()
     log_row['Entropy']      = policy.entropy(0.).item()
     
-    #Estimate policy gradient
-    # =======================
+    # Estimate policy gradient
+    # ========================
     if n_offpolicy_opt == 0:
         # On-policy gradient estimation
         if estimator == 'gpomdp' and entropy_coeff == 0:
