@@ -61,8 +61,5 @@ class MySuite(PyExperimentSuite):
         return log
 
 if __name__ == "__main__":
-    mysuite = MySuite(config='lq.cfg', ncores=1, delete=True)
+    mysuite = MySuite()
     mysuite.start()
-
-    # mysuite = MySuite(config='cartpole.cfg', ncores=1, delete=True)
-    # mysuite.start()
