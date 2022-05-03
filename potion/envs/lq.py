@@ -29,7 +29,7 @@ class LQ(gym.Env):
         self.da             = da #action dimension
         self.max_pos        = 1.0 * np.ones(self.ds) #max state for clipping
         self.max_action     = 1.0 * np.ones(self.da) #max action for clipping 
-        self.sigma_noise    = 0 * np.eye(self.ds) #std dev of environment noise
+        self.sigma_noise    = sigma_noise * np.eye(self.ds) #std dev of environment noise
         
         if random:
             self.A = np.random.rand(ds,ds)
@@ -320,7 +320,7 @@ class LQ(gym.Env):
         P = self._computeP2(K)
         Qfun = 0
         for i in range(n_random_xn):
-            noise = self.np_random.randn() * self.sigma_noise
+            noise = self.np_random.randn(self.ds) * self.sigma_noise
             action_noise = self.np_random.multivariate_normal(
                 np.zeros(Sigma.shape[0]), Sigma, 1)
             nextstate = np.dot(self.A, x) + np.dot(self.B,
