@@ -18,7 +18,8 @@ class MySuite(PyExperimentSuite):
 
         # Environment
         if params['path'] == 'results_lq':
-            self.env = LQ(1,1,sigma_noise=params['sigma_noise'])
+            self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'])
+
         elif params['path'] == 'results_cartpole':
             self.env = gym.make('ContCartPole-v0')
         else:
@@ -37,7 +38,7 @@ class MySuite(PyExperimentSuite):
         )
         
         # Algorithm
-        self.stepper = ConstantStepper(0.05)
+        self.stepper = ConstantStepper(0.0001)
 
     def iterate(self, params, rep, n):
         log = reinforce_step(

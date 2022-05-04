@@ -52,6 +52,6 @@ class MySuite(PyExperimentSuite):
         return result
 
 if __name__ == "__main__":
-    mysuite = MySuite(delete=False)
+    mysuite = MySuite()
     print(mysuite.options)
     mysuite.start()
