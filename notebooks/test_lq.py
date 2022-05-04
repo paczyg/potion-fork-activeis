@@ -6,7 +6,7 @@ import torch
 # ===========
 from potion.envs.lq import LQ
 
-env = LQ()
+env = LQ(max_pos=10, max_action = float('inf'))
 state_dim  = sum(env.observation_space.shape)
 action_dim = sum(env.action_space.shape)
 horizon    = env.horizon
@@ -38,15 +38,15 @@ log_name = 'REINFORCE'
 logger = Logger(directory=log_dir, name = log_name, modes=['csv'])
 
 ## Algorithm settings
-stepper = ConstantStepper(0.1)
-batchsize = 200
+stepper = ConstantStepper(0.0001)
+batchsize = 100
 
 seed = 42
 env.seed(seed)
 
 ## Algorithm
 reinforce(env = env,
-          n_offpolicy_opt=10,
+          n_offpolicy_opt=0,
           policy = policy,
           horizon = horizon,
           stepper = stepper,
@@ -54,7 +54,7 @@ reinforce(env = env,
           test_batchsize = batchsize,
           log_params = True,
           disc = env.gamma,
-          iterations = 10,
+          iterations = 120,
           seed = seed,
           logger = logger,
           save_params = 50, #Policy parameters will be saved on disk each 5 iterations
@@ -82,10 +82,6 @@ file = [x for x in glob.glob("*.csv") if x.startswith(log_name + '_')][-1]
 run = pd.read_csv(file, index_col=False)
 # Load info files
 files = [x for x in glob.glob("*.txt") if x.startswith(log_name + '_')]
-algo_infos = []
-for f in files:
-    with open(f, 'r') as f:
-        algo_infos.append(json.load(f))
 os.chdir(main_dir)
 
 perf = run['Perf']

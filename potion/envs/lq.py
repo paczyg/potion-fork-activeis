@@ -22,13 +22,13 @@ class LQ(gym.Env):
         'video.frames_per_second': 30
     }
 
-    def __init__(self, ds=1, da=1, *, random=False, sigma_noise=0):
+    def __init__(self, ds=1, da=1, *, max_action=1.0, max_pos=1.0, random=False, sigma_noise=0):
         self.horizon        = 10 #task horizon (reset is not automatic!)
         self.gamma          = 0.9 #discount factor
         self.ds             = ds #state dimension
         self.da             = da #action dimension
-        self.max_pos        = 1.0 * np.ones(self.ds) #max state for clipping
-        self.max_action     = 1.0 * np.ones(self.da) #max action for clipping 
+        self.max_pos        = max_pos * np.ones(self.ds) #max state for clipping
+        self.max_action     = max_action * np.ones(self.da) #max action for clipping 
         self.sigma_noise    = sigma_noise * np.eye(self.ds) #std dev of environment noise
         
         if random:
