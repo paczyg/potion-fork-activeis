@@ -63,5 +63,5 @@ class MySuite(PyExperimentSuite):
         return log
 
 if __name__ == "__main__":
-    mysuite = MySuite()
+    mysuite = MySuite(ncores=1, config='lq_s1.cfg')
     mysuite.start()
