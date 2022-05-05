@@ -19,7 +19,7 @@ class MySuite(PyExperimentSuite):
 
         # Environment
         # -----------
-        self.env = LQ(state_dim,1,random=False)
+        self.env = LQ(state_dim, 1, max_pos=10, max_action = float('inf'), random=False)
         self.env.horizon = horizon
         self.env.seed(self.seed)
 
