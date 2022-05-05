@@ -17,9 +17,10 @@ class MySuite(PyExperimentSuite):
         seed_all_agent(self.seed)
 
         # Environment
-        if params['path'] == 'results_lq':
-            self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'])
-
+        if params['path'] == 'results_lq_s1':
+            self.env = LQ(1,1,max_pos=50, max_action = float('inf'), sigma_noise=params['sigma_noise'])
+        elif params['path'] == 'results_lq_s5':
+            self.env = LQ(5,1,max_pos=50, max_action = float('inf'), sigma_noise=params['sigma_noise'])
         elif params['path'] == 'results_cartpole':
             self.env = gym.make('ContCartPole-v0')
         else:
