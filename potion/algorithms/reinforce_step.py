@@ -18,6 +18,12 @@ from potion.common.misc_utils import seed_all_agent, concatenate
 from potion.meta.steppers import ConstantStepper
 from potion.algorithms.ce_optimization import argmin_CE, get_alphas, var_mean
 
+def make_list(x):
+    if type(x) is list:
+        return x
+    else:
+        return [x]
+
 def reinforce_step(env, policy, horizon, *,
                     batchsize = 100, 
                     disc = 0.99,
@@ -36,6 +42,7 @@ def reinforce_step(env, policy, horizon, *,
                     info_key = 'danger',
                     log_params = False,
                     log_grad = False,
+                    log_ce_params = False,
                     parallel = False,
                     verbose = 1):
     """
@@ -68,6 +75,7 @@ def reinforce_step(env, policy, horizon, *,
         test is performed
     log_params: whether to include policy parameters in the human-readable logs
     log_grad: whether to include gradients in the human-readable logs
+    log_ce_params: whether to save the parameters of the CE potimized behavioural policies
     parallel: number of parallel jobs for simulation. If 0 or False, 
         sequential simulation is performed.
     render: how often (every x iterations) to render the agent's behavior
@@ -99,6 +107,10 @@ def reinforce_step(env, policy, horizon, *,
         log_keys += ['param%d' % i for i in range(policy.num_params())]
     if log_grad:
         log_keys += ['grad%d' % i for i in range(policy.num_params())]
+    if log_ce_params:
+        # save means and diagonal scales of behavioural policies
+        log_keys += [f"ce_policy_loc{i}_{j}" for j in range(n_offpolicy_opt) for i in range(policy.num_loc_params()) ]
+        log_keys += [f"ce_policy_scale{i}_{j}" for j in range(n_offpolicy_opt) for i in range(policy.num_scale_params()) ]
     if test_batchsize:
         log_keys += ['TestPerf', 'TestPerf', 'TestInfo']
     log_row = dict.fromkeys(log_keys)
@@ -263,4 +275,12 @@ def reinforce_step(env, policy, horizon, *,
         for i in range(policy.num_params()):
             log_row['grad%d' % i] = grad[i].item()
     
+    if n_offpolicy_opt>0:
+        if log_ce_params:
+            for ce_it, pol in enumerate(ce_policies[1:]):   # Skip the target policy
+                for i,el in enumerate(pol.get_loc_params().tolist()):
+                    log_row[f"ce_policy_loc{i}_{ce_it}"] = el
+                for i,el in enumerate(make_list(pol.get_scale_params().tolist())):
+                    log_row[f"ce_policy_scale{i}_{ce_it}"] = el
+
     return log_row
