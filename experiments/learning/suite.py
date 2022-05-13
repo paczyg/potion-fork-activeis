@@ -56,6 +56,7 @@ class MySuite(PyExperimentSuite):
             stepper             = self.stepper,
             seed                = self.seed,
             log_params          = True,
+            log_ce_params       = False,
             estimate_var        = True,
             shallow             = True
         )
@@ -63,5 +64,5 @@ class MySuite(PyExperimentSuite):
         return log
 
 if __name__ == "__main__":
-    mysuite = MySuite(ncores=1, config='lq_s1.cfg')
+    mysuite = MySuite()
     mysuite.start()
