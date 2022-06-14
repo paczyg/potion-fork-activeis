@@ -31,7 +31,7 @@ def reinforce_step(env, policy, horizon, *,
                     entropy_coeff = 0.,
                     action_filter = None,
                     estimator = 'gpomdp',
-                    n_offpolicy_opt = 0,
+                    ce_batchsizes = None,
                     defensive = True,
                     biased_offpolicy = True,
                     baseline = 'avg',
@@ -51,7 +51,7 @@ def reinforce_step(env, policy, horizon, *,
     env: environment
     policy: the one to improve
     horizon: maximum task horizon
-    batchsize: number of trajectories used to estimate policy gradient
+    batchsize: number of trajectories used to estimate policy gradient  #TODO spiegare i dati
     disc: discount factor
     stepper: step size criterion. A constant step size is used by default
     action_filter: function to apply to the agent's action before feeding it to 
@@ -59,7 +59,7 @@ def reinforce_step(env, policy, horizon, *,
         the action is clipped to satisfy evironmental boundaries
     estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
         suffers from less variance
-    n_offpolicy_opt: number of optimized behavioural policies
+    ce_batchsizes: #TODO
     defensive: whether to use the target policy in the gradient estimation
     biased_offpolicy: whether to use the samples employed in the cross-entropy optimization in the gradient estimation
     baseline: control variate to be used in the gradient estimator. Either
@@ -87,12 +87,15 @@ def reinforce_step(env, policy, horizon, *,
     if seed is not None:
         seed_all_agent(seed)
     
+    # Prepare the log
+    # ================
     log_keys = [
         'Perf', 
         'UPerf', 
         'AvgHorizon', 
         'StepSize', 
         'BatchSize',
+        'Batch_total',
         'GradNorm', 
         'Time',
         'StepSize',
@@ -107,14 +110,28 @@ def reinforce_step(env, policy, horizon, *,
         log_keys += ['param%d' % i for i in range(policy.num_params())]
     if log_grad:
         log_keys += ['grad%d' % i for i in range(policy.num_params())]
-    if log_ce_params:
-        # save means and diagonal scales of behavioural policies
-        log_keys += [f"ce_policy_loc{i}_{j}" for j in range(n_offpolicy_opt) for i in range(policy.num_loc_params()) ]
-        log_keys += [f"ce_policy_scale{i}_{j}" for j in range(n_offpolicy_opt) for i in range(policy.num_scale_params()) ]
+    if ce_batchsizes is None:
+        log_keys.append('CE_batchsize')
+    else:
+        ce_batchsizes = make_list(ce_batchsizes)
+        log_keys += ['CE_batchsize_%d' % i for i,_ in enumerate(ce_batchsizes)]
+        if log_ce_params:
+            # save means and diagonal scales of behavioural policies
+            log_keys += [f"ce_policy_loc{i}_{j}" for j in range(ce_batchsizes) for i in range(policy.num_loc_params()) ]
+            log_keys += [f"ce_policy_scale{i}_{j}" for j in range(ce_batchsizes) for i in range(policy.num_scale_params()) ]
     if test_batchsize:
         log_keys += ['TestPerf', 'TestPerf', 'TestInfo']
     log_row = dict.fromkeys(log_keys)
     
+    log_row['BatchSize'] = batchsize
+    if ce_batchsizes is not None:
+        for i,el in enumerate(ce_batchsizes):
+            log_row[f"CE_batchsize_{i}"] = el
+        log_row['Batch_total'] = sum(ce_batchsizes) + batchsize
+    else:
+        log_row['CE_batchsize'] = None
+        log_row['Batch_total']  = batchsize
+
     #Learning step
     start = time.time()
     params = policy.get_flat()
@@ -135,35 +152,30 @@ def reinforce_step(env, policy, horizon, *,
     
     # Collect trajectories
     # ====================
-    if n_offpolicy_opt > 0:
+    if ce_batchsizes is not None:
         # Off-policy
 
         # Cross-Entropy optimization for off-policies
-        if biased_offpolicy:
-            # Resure CE samples for final offpolicy estimation
-            N_per_it = math.ceil(batchsize / (n_offpolicy_opt+1))
-        else:
-            # Use N/2 samples for CE, and keep N/2 samples for offpolicy estimation
-            N_per_it = math.ceil((batchsize/2) / n_offpolicy_opt)
-
-        ce_policies = [policy]
-        ce_batches  = [generate_batch(env, policy, horizon, N_per_it, 
-                                        action_filter=action_filter, 
-                                        seed=seed, 
-                                        n_jobs=False)]
-        for _ in range(n_offpolicy_opt):
+        opt_ce_policy = policy
+        ce_policies   = []
+        ce_batches    = []
+        for _,ce_batchsize in enumerate(ce_batchsizes):
+            ce_policies.append(opt_ce_policy)
+            ce_batches.append(
+                generate_batch(env, opt_ce_policy, horizon, ce_batchsize, 
+                                            action_filter=action_filter, 
+                                            seed=seed, 
+                                            n_jobs=False)
+            )
             opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
                                     estimator=estimator,
                                     baseline=baseline,
                                     optimize_mean=True,
                                     optimize_variance=True)
-            ce_policies.append(opt_ce_policy)
-            ce_batches.append(generate_batch(env, opt_ce_policy, horizon, N_per_it, 
-                                                action_filter=action_filter, 
-                                                seed=seed, 
-                                                n_jobs=False))
 
         # Selection of batches and off-policies used during CE optimization
+        off_policies = []
+        off_batches  = []
         if biased_offpolicy:
             # Resure CE samples for final offpolicy estimation
             if defensive:
@@ -172,18 +184,17 @@ def reinforce_step(env, policy, horizon, *,
             else:
                 off_policies = ce_policies[1:]
                 off_batches  = ce_batches[1:]
-        else:
-            # Use N/2 samples for offpolicy estimation (first N/2 were used for CE)
-            off_batch = generate_batch(env, opt_ce_policy, horizon, batchsize/2,
+        elif defensive:
+            off_policies = ce_policies[0]
+            off_batches  = ce_batches[0] 
+        if batchsize > 0:
+            off_policies.append(opt_ce_policy)
+            off_batches.append(
+                generate_batch(env, opt_ce_policy, horizon, batchsize,
                                         action_filter=action_filter, 
                                         seed=seed, 
                                         n_jobs=False)
-            off_policies = [opt_ce_policy]
-            off_batches  = [off_batch]
-            if defensive:
-                # Use also the first samples (<N/2) from target policy for the first estimation of CE
-                off_policies = [policy, opt_ce_policy]
-                off_batches  = [ce_batches[0], off_batch]
+            )
         batch = concatenate(off_batches)
         
     else:
@@ -203,7 +214,7 @@ def reinforce_step(env, policy, horizon, *,
     
     # Estimate policy gradient
     # ========================
-    if n_offpolicy_opt == 0:
+    if ce_batchsizes is None:
         # On-policy gradient estimation
         if estimator == 'gpomdp' and entropy_coeff == 0:
             grad_samples = gpomdp_estimator(batch, disc, policy, 
@@ -224,7 +235,7 @@ def reinforce_step(env, policy, horizon, *,
             raise ValueError('Invalid policy gradient estimator')
         grad = torch.mean(grad_samples, 0)
         
-    elif n_offpolicy_opt > 0:
+    else:
         # Off-policy estimation
         if estimator == 'gpomdp' and entropy_coeff == 0 and shallow:
             grad_samples = _shallow_multioff_gpomdp_estimator(
@@ -241,8 +252,9 @@ def reinforce_step(env, policy, horizon, *,
 
     if estimate_var:
         # Variance of gradients samples
+        n_samples = grad_samples.shape[0]
         centered = grad_samples - grad.unsqueeze(0)
-        grad_cov = (batchsize/(batchsize - 1) * 
+        grad_cov = (n_samples/(n_samples - 1) * 
                     torch.mean(torch.bmm(centered.unsqueeze(2), 
                                         centered.unsqueeze(1)),0))
         grad_var = torch.sum(torch.diag(grad_cov)).item() #for humans
@@ -260,7 +272,6 @@ def reinforce_step(env, policy, horizon, *,
     if not torch.is_tensor(stepsize):
         stepsize = torch.tensor(stepsize)
     log_row['StepSize'] = torch.norm(stepsize).item()
-    log_row['BatchSize'] = batchsize
     
     #Update policy parameters
     new_params = params + stepsize * grad
@@ -275,7 +286,7 @@ def reinforce_step(env, policy, horizon, *,
         for i in range(policy.num_params()):
             log_row['grad%d' % i] = grad[i].item()
     
-    if n_offpolicy_opt>0:
+    if ce_batchsizes is not None:
         if log_ce_params:
             for ce_it, pol in enumerate(ce_policies[1:]):   # Skip the target policy
                 for i,el in enumerate(pol.get_loc_params().tolist()):

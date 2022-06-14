@@ -17,10 +17,10 @@ class MySuite(PyExperimentSuite):
         seed_all_agent(self.seed)
 
         # Environment
-        if params['path'] == 'results_lq_s1':
-            self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'])
+        if params['path'] == 'results_lq_s1' or params['path'] == 'prova':
+            self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
         elif params['path'] == 'results_lq_s5':
-            self.env = LQ(5,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'])
+            self.env = LQ(5,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
         elif params['path'] == 'results_cartpole':
             self.env = gym.make('ContCartPole-v0')
         else:
@@ -38,17 +38,21 @@ class MySuite(PyExperimentSuite):
             learn_std = False # We are NOT going to learn the variance parameter
         )
         
-        # Algorithm
-        self.stepper = ConstantStepper(0.0001)
+        self.stepper = ConstantStepper(params["learning_rate"])
 
     def iterate(self, params, rep, n):
+        if isinstance(params['ce_batchsizes'], str):
+            ce_batchsizes = eval(params['ce_batchsizes'])
+        else:
+            ce_batchsizes = params['ce_batchsizes']
+
         log = reinforce_step(
             self.env, self.policy, params['horizon'],
-            n_offpolicy_opt     = params['n_offpolicy_opt'],
+            ce_batchsizes       = ce_batchsizes,
             estimator           = params['estimator'],
             baseline            = params['baseline'],
             batchsize           = params['batchsize'],
-            test_batchsize      = params['batchsize'],
+            test_batchsize      = 100,
             action_filter       = params['action_filter'],
             defensive           = params['defensive'],
             biased_offpolicy    = params['biased_offpolicy'],
@@ -64,5 +68,11 @@ class MySuite(PyExperimentSuite):
         return log
 
 if __name__ == "__main__":
-    mysuite = MySuite()
+    # Interactive window
+    mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
+    # mysuite = MySuite(config='prova.cfg')
+    
+    # Command line
+    # mysuite = MySuite()
+    
     mysuite.start()
