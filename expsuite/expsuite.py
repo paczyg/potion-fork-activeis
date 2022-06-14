@@ -49,7 +49,9 @@ def convert_param_to_dirname(param):
     if type(param) == bytes:
         return param
     else:
-        return re.sub("0+$", "0", "%f" % param)
+        # return re.sub("0+$", "0", "%f" % param)
+        # TODO: update repository with modification
+        return "".join(x for x in str(param) if x.isalnum())
 
 
 def is_iterable(thing):
@@ -69,9 +71,9 @@ class PyExperimentSuite(object):
 
     def parse_opt(self,
             config='experiments.cfg',
-            ncores=cpu_count(),
+            numcores=cpu_count(),
             delete=False,
-            experiments=None,
+            experiment=None,
             browse=False,
             browse_big=False,
             progress=False):
@@ -92,7 +94,7 @@ class PyExperimentSuite(object):
             action="store",
             dest="ncores",
             type=int,
-            default=ncores,
+            default=numcores,
             help="number of processes you want to use, default is %i" % cpu_count(),
         )
         argparser.add_argument(
@@ -109,7 +111,7 @@ class PyExperimentSuite(object):
             action="append",
             dest="experiments",
             type=str,
-            default=experiments,
+            default=experiment,
             help="run only selected experiments, by default run all experiments in config file.",
         )
         argparser.add_argument(
