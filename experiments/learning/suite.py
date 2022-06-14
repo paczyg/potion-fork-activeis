@@ -69,10 +69,10 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
+    # mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
     # mysuite = MySuite(config='prova.cfg')
     
     # Command line
-    # mysuite = MySuite()
+    mysuite = MySuite()
     
     mysuite.start()
