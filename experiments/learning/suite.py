@@ -33,7 +33,7 @@ class MySuite(PyExperimentSuite):
         self.policy = ShallowGaussianPolicy(
             state_dim, # input size
             action_dim, # output size
-            mu_init = 0*torch.ones(state_dim), # initial mean parameters
+            mu_init = params["mu_init"]*torch.ones(state_dim), # initial mean parameters
             logstd_init = 0.0, # log of standard deviation
             learn_std = False # We are NOT going to learn the variance parameter
         )
@@ -70,9 +70,9 @@ class MySuite(PyExperimentSuite):
 if __name__ == "__main__":
     # Interactive window
     # mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
-    # mysuite = MySuite(config='prova.cfg')
+    mysuite = MySuite(config='lq_s1.cfg', numcores=1)
     
     # Command line
-    mysuite = MySuite()
+    # mysuite = MySuite()
     
     mysuite.start()
