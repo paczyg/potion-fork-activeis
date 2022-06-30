@@ -15,7 +15,7 @@ from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estim
 from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent, concatenate
-from potion.meta.steppers import ConstantStepper
+from potion.meta.steppers import ConstantStepper, Adam
 from potion.algorithms.ce_optimization import argmin_CE, get_alphas, var_mean
 
 def make_list(x):
@@ -274,7 +274,10 @@ def reinforce_step(env, policy, horizon, *,
     log_row['StepSize'] = torch.norm(stepsize).item()
     
     #Update policy parameters
-    new_params = params + stepsize * grad
+    if isinstance(stepper,Adam):
+        new_params = params + stepsize
+    else:
+        new_params = params + stepsize * grad
     policy.set_from_flat(new_params)
     
     #Log
