@@ -5,7 +5,7 @@ import gym
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
 from potion.common.misc_utils import clip, seed_all_agent
-from potion.meta.steppers import ConstantStepper
+from potion.meta.steppers import ConstantStepper, Adam
 from potion.actors.continuous_policies import ShallowGaussianPolicy
 from potion.algorithms.reinforce_step import reinforce_step
 
@@ -38,7 +38,7 @@ class MySuite(PyExperimentSuite):
             learn_std = False # We are NOT going to learn the variance parameter
         )
         
-        self.stepper = ConstantStepper(params["learning_rate"])
+        self.stepper = eval(params["stepper"])
 
     def iterate(self, params, rep, n):
         if isinstance(params['ce_batchsizes'], str):
@@ -52,7 +52,7 @@ class MySuite(PyExperimentSuite):
             estimator           = params['estimator'],
             baseline            = params['baseline'],
             batchsize           = params['batchsize'],
-            test_batchsize      = 100,
+            test_batchsize      = 500,
             action_filter       = params['action_filter'],
             defensive           = params['defensive'],
             biased_offpolicy    = params['biased_offpolicy'],
@@ -70,9 +70,9 @@ class MySuite(PyExperimentSuite):
 if __name__ == "__main__":
     # Interactive window
     # mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
-    mysuite = MySuite(config='lq_s1.cfg', numcores=1)
+    # mysuite = MySuite(config='lq_s1.cfg', numcores=1)
     
     # Command line
-    # mysuite = MySuite()
+    mysuite = MySuite()
     
     mysuite.start()
