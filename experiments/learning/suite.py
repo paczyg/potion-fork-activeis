@@ -35,7 +35,7 @@ class MySuite(PyExperimentSuite):
             action_dim, # output size
             mu_init = params["mu_init"]*torch.ones(state_dim), # initial mean parameters
             logstd_init = 0.0, # log of standard deviation
-            learn_std = False # We are NOT going to learn the variance parameter
+            learn_std = params["learn_std"]
         )
         
         self.stepper = eval(params["stepper"])
