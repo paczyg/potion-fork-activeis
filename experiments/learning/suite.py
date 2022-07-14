@@ -58,7 +58,7 @@ class MySuite(PyExperimentSuite):
             biased_offpolicy    = params['biased_offpolicy'],
             disc                = self.env.gamma,
             stepper             = self.stepper,
-            seed                = self.seed,
+            seed                = self.seed+n,
             log_params          = True,
             log_ce_params       = False,
             estimate_var        = True,
@@ -69,8 +69,8 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='prova.cfg', experiment='horizon', numcores=1)
-    # mysuite = MySuite(config='lq_s1.cfg', numcores=1)
+    # mysuite = MySuite(config='lq_s1.cfg', experiment='test', numcores=1)
+    # mysuite = MySuite(config='cartpole.cfg', experiment='onpolicy', numcores=1)
     
     # Command line
     mysuite = MySuite()
