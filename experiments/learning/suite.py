@@ -17,7 +17,7 @@ class MySuite(PyExperimentSuite):
         seed_all_agent(self.seed)
 
         # Environment
-        if params['path'] == 'results_lq_s1' or params['path'] == 'prova':
+        if params['path'] == 'results_lq_s1':
             self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
         elif params['path'] == 'results_lq_s5':
             self.env = LQ(5,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
@@ -33,8 +33,8 @@ class MySuite(PyExperimentSuite):
         self.policy = ShallowGaussianPolicy(
             state_dim, # input size
             action_dim, # output size
-            mu_init = params["mu_init"]*torch.ones(state_dim), # initial mean parameters
-            logstd_init = 0.0, # log of standard deviation
+            mu_init = params["mu_init"]*torch.ones(state_dim),
+            logstd_init = params["logstd_init"]*torch.ones(action_dim),
             learn_std = params["learn_std"]
         )
         
@@ -60,7 +60,8 @@ class MySuite(PyExperimentSuite):
             stepper             = self.stepper,
             seed                = self.seed+n,
             log_params          = True,
-            log_ce_params       = False,
+            log_grad            = True,
+            log_ce_params       = True,
             estimate_var        = True,
             shallow             = True
         )
@@ -69,8 +70,7 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='lq_s1.cfg', experiment='test', numcores=1)
-    # mysuite = MySuite(config='cartpole.cfg', experiment='onpolicy', numcores=1)
+    # mysuite = MySuite(config='lq_s1.cfg', experiment='grad_comparison', numcores=1)
     
     # Command line
     mysuite = MySuite()
