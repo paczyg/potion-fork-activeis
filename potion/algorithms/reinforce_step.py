@@ -117,8 +117,8 @@ def reinforce_step(env, policy, horizon, *,
         log_keys += ['CE_batchsize_%d' % i for i,_ in enumerate(ce_batchsizes)]
         if log_ce_params:
             # save means and diagonal scales of behavioural policies
-            log_keys += [f"ce_policy_loc{i}_{j}" for j in range(ce_batchsizes) for i in range(policy.num_loc_params()) ]
-            log_keys += [f"ce_policy_scale{i}_{j}" for j in range(ce_batchsizes) for i in range(policy.num_scale_params()) ]
+            log_keys += [f"ce_policy_loc{i}_{j}" for j in range(len(ce_batchsizes)) for i in range(policy.num_loc_params()) ]
+            log_keys += [f"ce_policy_scale{i}_{j}" for j in range(len(ce_batchsizes)) for i in range(policy.num_scale_params()) ]
     if test_batchsize:
         log_keys += ['TestPerf', 'TestPerf', 'TestInfo']
     log_row = dict.fromkeys(log_keys)
@@ -167,11 +167,15 @@ def reinforce_step(env, policy, horizon, *,
                                             seed=seed, 
                                             n_jobs=False)
             )
-            opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
-                                    estimator=estimator,
-                                    baseline=baseline,
-                                    optimize_mean=True,
-                                    optimize_variance=True)
+            try:
+                opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
+                                        estimator=estimator,
+                                        baseline=baseline,
+                                        optimize_mean=True,
+                                        optimize_variance=True)
+            except(RuntimeError):
+                # If CE minimization is not possible, keep the previous opt_ce_policy
+                pass
 
         # Selection of batches and off-policies used during CE optimization
         off_policies = []
