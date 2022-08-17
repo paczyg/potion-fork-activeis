@@ -38,7 +38,7 @@ def set_from_flat(params, values):
         k = 0
         for p in params:
             shape = tuple(list(p.shape))
-            offset = torch.prod(torch.tensor(shape)).item()
+            offset = p.numel()
             val = values[k : k + offset]
             val = val.view(shape)
             with torch.no_grad():
