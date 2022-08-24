@@ -11,7 +11,7 @@ import time
 from potion.simulation.trajectory_generators import generate_batch
 from potion.common.misc_utils import performance, avg_horizon, mean_sum_info
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator, egpomdp_estimator
-from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estimator
+from potion.estimation.offpolicy_gradients import multioff_gpomdp_estimator
 from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent, concatenate
@@ -25,25 +25,25 @@ def make_list(x):
         return [x]
 
 def reinforce_step(env, policy, horizon, *,
-                    batchsize = 100, 
-                    disc = 0.99,
-                    stepper = ConstantStepper(1e-2),
-                    entropy_coeff = 0.,
                     action_filter = None,
-                    estimator = 'gpomdp',
-                    ce_batchsizes = None,
-                    defensive = True,
-                    biased_offpolicy = True,
+                    batchsize = 100, 
                     baseline = 'avg',
-                    shallow = False,
-                    seed = None,
+                    biased_offpolicy = True,
+                    ce_batchsizes = None,
+                    disc = 0.99,
+                    defensive = True,
+                    entropy_coeff = 0.,
                     estimate_var = False,
-                    test_batchsize = False,
+                    estimator = 'gpomdp',
                     info_key = 'danger',
-                    log_params = False,
                     log_grad = False,
                     log_ce_params = False,
+                    log_params = False,
                     parallel = False,
+                    seed = None,
+                    shallow = False,
+                    stepper = ConstantStepper(1e-2),
+                    test_batchsize = False,
                     verbose = 1):
     """
     REINFORCE/G(PO)MDP algorithmn
@@ -159,7 +159,7 @@ def reinforce_step(env, policy, horizon, *,
         opt_ce_policy = policy
         ce_policies   = []
         ce_batches    = []
-        for _,ce_batchsize in enumerate(ce_batchsizes):
+        for ce_batchsize in ce_batchsizes:
             ce_policies.append(opt_ce_policy)
             ce_batches.append(
                 generate_batch(env, opt_ce_policy, horizon, ce_batchsize, 
@@ -241,16 +241,10 @@ def reinforce_step(env, policy, horizon, *,
         
     else:
         # Off-policy estimation
-        if estimator == 'gpomdp' and entropy_coeff == 0 and shallow:
-            grad_samples = _shallow_multioff_gpomdp_estimator(
-                batch, disc, policy, off_policies, get_alphas(off_batches),
-                baselinekind=baseline, 
-                result='samples'
-            )
+        if estimator == 'gpomdp' and entropy_coeff == 0:
+            grad_samples = multioff_gpomdp_estimator(
+                batch, disc, policy, off_policies, get_alphas(off_batches), baselinekind=baseline, result='samples', is_shallow=shallow)
             grad = torch.mean(grad_samples,0)
-        elif estimator == 'reinforce':
-            #TODO offpolicy reinforce
-            raise NotImplementedError
         else:
             raise NotImplementedError
 
