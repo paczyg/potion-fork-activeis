@@ -71,20 +71,22 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas):
     # Samples
     states, actions, _, mask, _ = unpack(batch) #NxHx*
     
-    # Target probability
-    log_target = policy.log_pdf(states, actions) #NxH
-    mask = mask.view(log_target.shape)
-    log_target = log_target * mask
-    sum_log_target = torch.sum(log_target,1) #N
-    
-    # Proposal probability
-    log_proposals = [None]*len(proposal_policies)
-    for i,p in enumerate(proposal_policies):
-        log_proposals[i] = math.log(alphas[i]) + torch.sum(p.log_pdf(states, actions)*mask, 1)
-    sum_log_proposals = functools.reduce(smoothmax, log_proposals) #N
+    with torch.no_grad():
 
-    # Importance weights
-    iws = torch.exp(sum_log_target - sum_log_proposals) #N
+        # Target probability
+        log_target = policy.log_pdf(states, actions) #NxH
+        mask = mask.view(log_target.shape)
+        log_target = log_target * mask
+        sum_log_target = torch.sum(log_target,1) #N
+        
+        # Proposal probability
+        log_proposals = [None]*len(proposal_policies)
+        for i,p in enumerate(proposal_policies):
+            log_proposals[i] = math.log(alphas[i]) + torch.sum(p.log_pdf(states, actions)*mask, 1)
+        sum_log_proposals = functools.reduce(smoothmax, log_proposals) #N
+
+        # Importance weights
+        iws = torch.exp(sum_log_target - sum_log_proposals) #N
     
     if any(iws.isnan()):
         raise ValueError

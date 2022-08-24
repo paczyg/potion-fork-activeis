@@ -281,7 +281,7 @@ def _incr_shallow_gpomdp_estimator(traj, disc, policy, baselinekind='peters', re
         
 """Testing"""
 if __name__ == '__main__':
-    from potion.actors.continuous_policies import ShallowGaussianPolicy as Gauss
+    from potion.actors.continuous_policies import ShallowGaussianPolicy, DeepGaussianPolicy
     from potion.simulation.trajectory_generators import generate_batch
     from potion.common.misc_utils import seed_all_agent
     import potion.envs
@@ -292,13 +292,15 @@ if __name__ == '__main__':
     N = 100
     H = 100
     disc = 0.99
-    pol = Gauss(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)
+    pol = ShallowGaussianPolicy(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)
+    pol_deep = DeepGaussianPolicy(4,1, mu_init=[0.,0.,0.,0.], learn_std=True)
     
     batch = generate_batch(env, pol, H, N)
     
-    o = gpomdp_estimator(batch, disc, pol, baselinekind='peters', 
-                         shallow=True)
+    o = gpomdp_estimator(batch, disc, pol, baselinekind='peters', shallow=True)
     print('Shallow GPOMDP (peters):', o)
+    o = gpomdp_estimator(batch, disc, pol_deep, baselinekind='peters', shallow=False)
+    print('Deep GPOMDP (peters):', o)
     #o = gpomdp_estimator(batch, disc, pol, baselinekind='peters')
     #print('GPOMDP (peters)', o)
     #print()
