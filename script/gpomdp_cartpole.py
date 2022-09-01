@@ -26,13 +26,13 @@ parser.add_argument('--storage', help='root of log directories', type=str, defau
 parser.add_argument('--estimator', help='Policy gradient estimator (reinforce/gpomdp)', type=str, default='gpomdp')
 parser.add_argument('--baseline', help='baseline for policy gradient estimator (avg/peters/zero)', type=str, default='peters')
 parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-parser.add_argument('--env', help='Gym environment id', type=str, default='GridWorld-v0')
-parser.add_argument('--horizon', help='Task horizon', type=int, default=10)
+parser.add_argument('--env', help='Gym environment id', type=str, default='CartPole-v1')
+parser.add_argument('--horizon', help='Task horizon', type=int, default=100)
 parser.add_argument('--batchsize', help='Initial batch size', type=int, default=100)
-parser.add_argument('--iterations', help='Iterations', type=int, default=100*1000)
+parser.add_argument('--iterations', help='Iterations', type=int, default=20000)
 parser.add_argument('--disc', help='Discount factor', type=float, default=0.9)
-parser.add_argument('--std_init', help='Initial policy std', type=float, default=1.)
-parser.add_argument('--stepper', help='Step size rule', type=str, default='constant')
+parser.add_argument('--tmp', help='(Initial) policy temperature', type=float, default=1.)
+parser.add_argument('--stepper', help='Step size rule', type=str, default='safe')
 parser.add_argument('--step', help='Step size', type=float, default=1.)
 parser.add_argument('--ent', help='Entropy bonus coefficient', type=float, default=0.)
 parser.add_argument("--render", help="Render an episode",
@@ -84,15 +84,14 @@ if args.temp:
 else:
     logger = Logger(directory=args.storage + '/logs', name = logname, modes=['human', 'csv'])
 
-
-step = 1. / gibbs_lip_const(1., 1., args.disc, 1.)
-
 if args.stepper == 'rmsprop':
     stepper = RMSprop()
 elif args.stepper == 'adam':
-    stepper = Adam(alpha=step)
+    stepper = Adam(alpha=args.step)
+elif args.stepper == 'safe':
+   stepper = ConstantStepper(1. / gibbs_lip_const(1., 1., args.disc, 1.))
 else:
-    stepper = ConstantStepper(step)
+   stepper = ConstantStepper(args.step)
 
 
 # Run

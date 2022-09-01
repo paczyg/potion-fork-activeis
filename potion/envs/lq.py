@@ -77,8 +77,8 @@ class LQ(gym.Env):
         """
         self.timestep = 0
         if state is None:
-            self.state = np.array(self.np_random.uniform(low=-self.max_pos,
-                                                          high=self.max_pos))
+            self.state = np.array(self.np_random.uniform(low=-1.,
+                                                          high=1.))
         else:
             self.state = np.array(state)
 
@@ -201,7 +201,7 @@ class LQ(gym.Env):
                                  np.dot(self.B.T, np.dot(P, self.A)))
         return K
 
-    def computeJ(self, K, Sigma, n_random_x0=10000):
+    def computeJ(self, K, Sigma=1., n_random_x0=10000):
         """
         This function computes the discounted reward associated to the provided
         linear controller (a = K s + \epsilon, \epsilon \sim N(0,\Sigma)).

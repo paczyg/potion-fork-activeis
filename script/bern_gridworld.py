@@ -10,19 +10,19 @@ import gym
 import potion.envs
 from potion.actors.discrete_policies import ShallowGibbsPolicy
 from potion.common.logger import Logger
-from potion.algorithms.safe import spg
+from potion.algorithms.safe import relaxed_spg
 import argparse
 import re
 from potion.common.rllab_utils import rllab_env_from_name, Rllab2GymWrapper
 from potion.meta.smoothing_constants import gibbs_lip_const
-from potion.meta.error_bounds import hoeffding_bounded_score
+from potion.meta.error_bounds import emp_bernstein
 
 
 # Command line arguments
 parser = argparse.ArgumentParser(formatter_class
                                  =argparse.ArgumentDefaultsHelpFormatter)
 
-parser.add_argument('--name', help='Experiment name', type=str, default='SPG')
+parser.add_argument('--name', help='Experiment name', type=str, default='RSPG')
 parser.add_argument('--storage', help='root of log directories', type=str, default='..')
 parser.add_argument('--estimator', help='PG estimator (reinforce/gpomdp)', 
                     type=str, default='gpomdp')
@@ -46,10 +46,6 @@ parser.add_argument('--max_feat', help='Maximum state feature', type=float,
                     default=1.)
 parser.add_argument('--max_rew', help='Maximum reward', type=float, 
                     default=1.)
-parser.add_argument("--fast", help="speed up",
-                    action="store_true")
-parser.add_argument("--no-fast", help="Do not speed up",
-                    action="store_false")
 parser.add_argument("--render", help="Render an episode",
                     action="store_true")
 parser.add_argument("--no-render", help="Do not render any episode",
@@ -58,7 +54,7 @@ parser.add_argument("--temp", help="Save logs in temp folder",
                     action="store_true")
 parser.add_argument("--no-temp", help="Save logs in logs folder",
                     action="store_false")
-parser.set_defaults(fast=True, render=False, temp=False) 
+parser.set_defaults(render=False, temp=False) 
 
 args = parser.parse_args()
 
@@ -92,18 +88,19 @@ lip_const = gibbs_lip_const(args.max_feat, args.max_rew, args.disc,
                             1.)
 print(lip_const)
 score_bound = 2 * args.max_feat
-err_bound = hoeffding_bounded_score(args.max_rew, score_bound, args.disc, args.horizon, 
+err_bound = emp_bernstein(args.max_rew, score_bound, args.disc, args.horizon, 
                             dim=16, estimator=args.estimator)
 
 
 # Run
-spg(env, policy, args.horizon, lip_const, err_bound,
+relaxed_spg(env, policy, args.horizon, lip_const, err_bound, args.max_rew,
+            empirical = True,
+            degradation = 0.05,
             fail_prob = 1. - args.conf,
             mini_batchsize = args.mini_batchsize,
             max_batchsize = args.max_batchsize,
             max_samples = args.max_samples,
             disc = args.disc,
-            fast = args.fast,
             seed = args.seed,
             logger = logger,
             render = args.render,
