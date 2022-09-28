@@ -108,7 +108,7 @@ fig.tight_layout()
 plt.show()
 
 # Test 4
-# Varying horizon
+# Varying batchsizes
 # -----------------------------------------------------
 df = get_dataframe(mysuite, experiment_name='batchsizes', xkey='n_per_it')
 

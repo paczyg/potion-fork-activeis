@@ -52,6 +52,7 @@ class MySuite(PyExperimentSuite):
         return result
 
 if __name__ == "__main__":
-    mysuite = MySuite()
-    print(mysuite.options)
+    mysuite = MySuite(config="experiments.cfg", experiment="means")
+    print("*** Test start ***")
     mysuite.start()
+    print("*** Test end ***")
