@@ -37,14 +37,13 @@ def gpomdp_estimator(batch, disc, policy, baselinekind='avg', result='mean',
     H = rewards.shape[1]
     m = policy.num_params()
     
-    disc_rewards = discount(rewards, disc) #NxH
-    logps = policy.log_pdf(states, actions) * mask #NxH
-    cm_logps = torch.cumsum(logps, 1) #NxH
+    disc_rewards = discount(rewards, disc) * mask   # [N,H]
+    logps = policy.log_pdf(states, actions) * mask  # [N,H]
+    cm_logps = torch.cumsum(logps, 1)               # [N,H]
     
     if baselinekind == 'peters':
         jac = jacobian(policy, cm_logps.view(-1)).reshape((N,H,m)) #NxHxm   
-        b_num = torch.sum(tensormat(jac**2, 
-                                    disc_rewards), 0) #Hxm
+        b_num = torch.sum(tensormat(jac**2, disc_rewards), 0) #Hxm
         b_den = torch.sum(jac**2, 0) #Hxm
         baseline = b_num / b_den #Hxm
         baseline[baseline != baseline] = 0
@@ -57,9 +56,9 @@ def gpomdp_estimator(batch, disc, policy, baselinekind='avg', result='mean',
             baseline = torch.zeros(1) #1
         values = (disc_rewards - baseline) * mask #NxH
         
-        _samples = torch.stack([tu.flat_gradients(policy, cm_logps[i,:], 
-                                              values[i,:])
-                                       for i in range(N)], 0) #Nxm
+        _samples = torch.stack(
+            [tu.flat_gradients(policy, cm_logps[i,:], values[i,:]) for i in range(N)],
+            0) # [N,m]
     if result == 'samples':
         return _samples #Nxm
     else:
@@ -149,7 +148,7 @@ def _shallow_gpomdp_estimator(batch, disc, policy, baselinekind='peters', result
     with torch.no_grad():        
         states, actions, rewards, mask, _ = unpack(batch) # NxHxm, NxHxd, NxH, NxH
         
-        disc_rewards = discount(rewards, disc) #NxH
+        disc_rewards = discount(rewards, disc) * mask #NxH
         scores = policy.score(states, actions) #NxHxM
         G = torch.cumsum(tensormat(scores, mask), 1) #NxHxm
         n_k = torch.sum(mask, dim=0) #H
@@ -297,13 +296,14 @@ if __name__ == '__main__':
     
     batch = generate_batch(env, pol, H, N)
     
-    o = gpomdp_estimator(batch, disc, pol, baselinekind='peters', shallow=True)
-    print('Shallow GPOMDP (peters):', o)
-    o = gpomdp_estimator(batch, disc, pol_deep, baselinekind='peters', shallow=False)
-    print('Deep GPOMDP (peters):', o)
-    #o = gpomdp_estimator(batch, disc, pol, baselinekind='peters')
-    #print('GPOMDP (peters)', o)
-    #print()
+    # FIXME: estimations with different baselines are not equal
+    for b in ["zero", "avg", "peters"]:
+        print(f"Compare shallow and deep gradient evaluations (baseline {b})")
+        print("-------------------------------------------------------------")
+        o = gpomdp_estimator(batch, disc, pol, baselinekind=b, shallow=True)
+        print(f'Shallow GPOMDP: {o}')
+        o = gpomdp_estimator(batch, disc, pol_deep, baselinekind=b, shallow=False)
+        print(f'Deep GPOMDP: {o}\n')
     
     print('Cumulative version')
     cm_1 = cm_2 = cm_3 = 0.
