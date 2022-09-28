@@ -244,3 +244,65 @@ def algo(env, target_policy, n_per_it, n_ce_iterations, *,
         results['var_grad_mc']  = var_mean(grad_samples)[1]
 
     return results, stats, algo_info
+
+def ce_optimization(env, target_policy, batchsizes, *,
+         estimator='gpomdp',
+         baseline='zero',
+         action_filter=None,
+         optimize_mean=True,
+         optimize_variance=True,
+         reuse_samples = True):
+    """
+    Parameters
+    ----------
+    ce_batchsizes : list
+        List with the number of samples to be used at every CE optimization epoch
+    optimize_mean : boolean
+        Whether or not to optimize the mean of the behavioural policy
+    optimize_variance : boolean
+        Whether or not to optimize the variance of the behavioural policy
+    reuse_samples : boolean
+        Whether to reuse or not samples collected during the iterations of CE optimization
+        for the current behavioural policy optimization.
+        If False, only the last batch is used to estimate and optimize the CE loss for the current behavioural policy
+
+    Returns
+    -------
+    opt_ce_policy : list
+        The cross-entropy optimized behavioural policy
+    ce_policies : list
+        The list of optimized policies during the cross entropy epochs
+    ce_batches : list
+        The list of trajectories batches collected during the cross entropy epochs
+    """
+
+    # Parse parameters
+    # ----------------
+    window = None if reuse_samples else -1
+
+    seed = None
+
+    # Compute optimal importance sampling distributions
+    # ------------------------------------------------
+    opt_ce_policy = target_policy
+    ce_policies   = []
+    ce_batches    = []
+    for batchsize in batchsizes:
+        ce_policies.append(opt_ce_policy)
+        ce_batches.append(
+            generate_batch(env, opt_ce_policy, env.horizon, batchsize, 
+                           action_filter=action_filter, 
+                           seed=seed, 
+                           n_jobs=False)
+        )
+        try:
+            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:], 
+                                    estimator=estimator,
+                                    baseline=baseline,
+                                    optimize_mean=optimize_mean,
+                                    optimize_variance=optimize_variance)
+        except(RuntimeError):
+            # If CE minimization is not possible, keep the previous opt_ce_policy
+            pass
+        
+    return opt_ce_policy, ce_policies, ce_batches
