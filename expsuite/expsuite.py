@@ -50,8 +50,9 @@ def convert_param_to_dirname(param):
         return param
     else:
         # return re.sub("0+$", "0", "%f" % param)
-        # TODO: update repository with modification
-        return "".join(x for x in str(param) if x.isalnum())
+        # TODO: update repository with modification.
+        # TODO: extend modification to all functions for data retrieval
+        return "".join(x for x in str(param) if x.isalnum() or x == "-")
 
 
 def is_iterable(thing):
@@ -99,7 +100,7 @@ class PyExperimentSuite(object):
         )
         argparser.add_argument(
             "-d",
-            "--del",
+            "--delete",
             action="store_true",
             dest="delete",
             default=delete,
