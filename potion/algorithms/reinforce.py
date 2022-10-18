@@ -4,40 +4,37 @@
 REINFORCE family of algorithms (actor-only policy gradient)
 @author: Matteo Papini, Giorgio Manganini
 """
-import math
+
 import torch
 import time
-
+import copy
 from potion.simulation.trajectory_generators import generate_batch
 from potion.common.misc_utils import performance, avg_horizon, mean_sum_info
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator, egpomdp_estimator
-from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estimator
-from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.logger import Logger
-from potion.common.misc_utils import seed_all_agent, concatenate
+from potion.common.misc_utils import seed_all_agent
 from potion.meta.steppers import ConstantStepper
-from potion.algorithms.ce_optimization import argmin_CE, get_alphas, var_mean
 
 def reinforce(env, policy, horizon, *,
-                    batchsize = 100, 
-                    iterations = 1000,
-                    disc = 0.99,
-                    stepper = ConstantStepper(1e-2),
-                    entropy_coeff = 0.,
                     action_filter = None,
-                    estimator = 'gpomdp',
+                    batchsize = 100, 
                     baseline = 'avg',
-                    logger = Logger(name='gpomdp'),
-                    shallow = False,
-                    seed = None,
+                    disc = 0.99,
+                    entropy_coeff = 0.,
                     estimate_var = False,
-                    test_batchsize = False,
+                    estimator = 'gpomdp',
                     info_key = 'danger',
-                    save_params = 100000,
+                    iterations = 1000,
+                    logger = Logger(name='gpomdp'),
                     log_params = False,
                     log_grad = False,
                     parallel = False,
                     render = False,
+                    save_params = 100000,
+                    seed = None,
+                    shallow = False,
+                    stepper = ConstantStepper(1e-2),
+                    test_batchsize = False,
                     verbose = 1):
     """
     REINFORCE/G(PO)MDP algorithmn
@@ -54,9 +51,6 @@ def reinforce(env, policy, horizon, *,
         the action is clipped to satisfy evironmental boundaries
     estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
         suffers from less variance
-    n_offpolicy_opt: number of optimized behavioural policies
-    defensive: whether to use the target policy in the gradient estimation
-    biased_offpolicy: whether to use the samples employed in the cross-entropy optimization in the gradient estimation
     baseline: control variate to be used in the gradient estimator. Either
         'avg' (average reward, default), 'peters' (variance-minimizing) or
         'zero' (no baseline)
@@ -64,7 +58,6 @@ def reinforce(env, policy, horizon, *,
     shallow: whether to employ pre-computed score functions (only available for
         shallow policies)
     seed: random seed (None for random behavior)
-    estimate_var: whether to estimate the variance of the gradient samples and their average
     test_batchsize: number of test trajectories used to evaluate the 
         corresponding deterministic policy at each iteration. If 0 or False, no 
         test is performed
@@ -79,237 +72,228 @@ def reinforce(env, policy, horizon, *,
         on a sample trajectory. If False, no rendering happens
     verbose: level of verbosity (0: only logs; 1: normal; 2: maximum)
     """
-    
-    #Seed agent
-    if seed is not None:
-        seed_all_agent(seed)
-    
-    #Prepare logger
-    algo_info = {
-        'Algorithm': 'REINFORCE',
-        'Estimator': estimator,
-        'n_offpolicy_opt': n_offpolicy_opt,
-        'defensive': defensive,
-        'biased_offpolicy': biased_offpolicy,
-        'Baseline': baseline,
-        'Env': str(env), 
-        'Horizon': horizon,
-        'BatchSize': batchsize, 
-        'Disc': disc, 
-        'StepSizeCriterion': str(stepper), 
-        'Seed': seed,
-        'EntropyCoefficient': entropy_coeff
-    }
-    logger.write_info({**algo_info, **policy.info()})
-    log_keys = [
-        'Perf', 
-        'UPerf', 
-        'AvgHorizon', 
-        'StepSize', 
-        'BatchSize',
-        'GradNorm', 
-        'Time',
-        'StepSize',
-        'Exploration',
-        'Entropy',
-        'Info'
-    ]
-    if estimate_var:
-        log_keys.append('SampleVar')
-        log_keys.append('VarMean')
-    if log_params:
-        log_keys += ['param%d' % i for i in range(policy.num_params())]
-    if log_grad:
-        log_keys += ['grad%d' % i for i in range(policy.num_params())]
-    if test_batchsize:
-        log_keys += ['TestPerf', 'TestPerf', 'TestInfo']
-    log_row = dict.fromkeys(log_keys)
-    logger.open(log_row.keys())
-    
-    #Learning loop
-    it = 1
-    while(it < iterations):
-        #Begin iteration
-        start = time.time()
-        if verbose:
-            print('\nIteration ', it)
-        params = policy.get_flat()
-        if verbose > 1:
-            print('Parameters:', params)
-        
-        #Test the corresponding deterministic policy
-        if test_batchsize:
-            test_batch = generate_batch(env, policy, horizon, test_batchsize, 
-                                        action_filter=action_filter,
-                                        seed=seed,
-                                        njobs=parallel,
-                                        deterministic=True,
-                                        key=info_key)
-            log_row['TestPerf'] = performance(test_batch, disc)
-            log_row['TestInfo'] = mean_sum_info(test_batch).item()
-            log_row['UTestPerf'] = performance(test_batch, 1)
-        
-        #Render the agent's behavior
+
+    # Saving algorithm information
+    # ================
+    # Store function parameters (do not move it from here!)
+    algo_params = copy.deepcopy(locals())
+    if logger is not None:
+        # Save algorithm parameters and policy info
+        logger.write_info({**algo_params, **policy.info()})
+
+    # Prepare function arguments for iterations
+    del algo_params['iterations']
+    del algo_params['logger']
+    del algo_params['render']
+    del algo_params['save_params']
+
+    # Learning loop
+    # =============
+    results = []
+    for it in range(iterations):
+
+        # Render the agent's behavior
         if render and it % render==0:
             generate_batch(env, policy, horizon, 
                            episodes=1, 
                            action_filter=action_filter, 
                            render=True,
                            key=info_key)
-    
-        #Collect trajectories
-        # ===================
-        if n_offpolicy_opt > 0:
-            # Off-policy
 
-            # Cross-Entropy optimization for off-policies
-            if biased_offpolicy:
-                # Resure CE samples for final offpolicy estimation
-                N_per_it = math.ceil(batchsize / (n_offpolicy_opt+1))
-            else:
-                # Use N/2 samples for CE, and keep N/2 samples for offpolicy estimation
-                N_per_it = math.ceil((batchsize/2) / n_offpolicy_opt)
+        # Save parameters
+        if logger is not None:
+            if save_params and it % save_params == 0:
+                logger.save_params(policy.get_flat(), it)
 
-            ce_policies = [policy]
-            ce_batches  = [generate_batch(env, policy, horizon, N_per_it, 
-                                          action_filter=action_filter, 
-                                          seed=seed, 
-                                          n_jobs=False)]
-            for _ in range(n_offpolicy_opt):
-                opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
-                                       estimator=estimator,
-                                       baseline=baseline,
-                                       optimize_mean=True,
-                                       optimize_variance=True)
-                ce_policies.append(opt_ce_policy)
-                ce_batches.append(generate_batch(env, opt_ce_policy, horizon, N_per_it, 
-                                                 action_filter=action_filter, 
-                                                 seed=seed, 
-                                                 n_jobs=False))
-
-            # Selection of batches and off-policies used during CE optimization
-            if biased_offpolicy:
-                # Resure CE samples for final offpolicy estimation
-                if defensive:
-                    off_policies = ce_policies
-                    off_batches  = ce_batches
-                else:
-                    off_policies = ce_policies[1:]
-                    off_batches  = ce_batches[1:]
-            else:
-                # Use N/2 samples for offpolicy estimation (first N/2 were used for CE)
-                off_batch = generate_batch(env, opt_ce_policy, horizon, batchsize/2,
-                                           action_filter=action_filter, 
-                                           seed=seed, 
-                                           n_jobs=False)
-                off_policies = [opt_ce_policy]
-                off_batches  = [off_batch]
-                if defensive:
-                    # Use also the first samples (<N/2) from target policy for the first estimation of CE
-                    off_policies = [policy, opt_ce_policy]
-                    off_batches  = [ce_batches[0], off_batch]
-            batch = concatenate(off_batches)
-            
+        # Update policy
+        if verbose:
+            print('\nIteration ', it)
+        log_row = reinforce_step(**algo_params)
+        
+        if logger is not None:
+            if not logger.ready:
+                logger.open(log_row.keys())
+            logger.write_row(log_row, it)
         else:
-            # On-policy
-            batch = generate_batch(env, policy, horizon, batchsize, 
-                                   action_filter=action_filter, 
-                                   seed=seed, 
-                                   n_jobs=parallel,
-                                   key=info_key)
-        
-        log_row['Perf']         = performance(batch, disc)
-        log_row['Info']         = mean_sum_info(batch).item()
-        log_row['UPerf']        = performance(batch, disc=1.)
-        log_row['AvgHorizon']   = avg_horizon(batch)
-        log_row['Exploration']  = policy.exploration().item()
-        log_row['Entropy']      = policy.entropy(0.).item()
-        
-        #Estimate policy gradient
-        # =======================
-        if n_offpolicy_opt == 0:
-            # On-policy gradient estimation
-            if estimator == 'gpomdp' and entropy_coeff == 0:
-                grad_samples = gpomdp_estimator(batch, disc, policy, 
-                                                baselinekind=baseline, 
-                                                shallow=shallow,
-                                                result='samples')
-            elif estimator == 'gpomdp':
-                grad_samples = egpomdp_estimator(batch, disc, policy, entropy_coeff,
-                                                baselinekind=baseline,
-                                                shallow=shallow,
-                                                result='samples')
-            elif estimator == 'reinforce':
-                grad_samples = reinforce_estimator(batch, disc, policy, 
-                                                baselinekind=baseline, 
-                                                shallow=shallow,
-                                                result='samples')
-            else:
-                raise ValueError('Invalid policy gradient estimator')
-            grad = torch.mean(grad_samples, 0)
-            
-        elif n_offpolicy_opt > 0:
-            # Off-policy estimation
-            if estimator == 'gpomdp' and entropy_coeff == 0 and shallow:
-                grad_samples = _shallow_multioff_gpomdp_estimator(
-                    batch, disc, policy, off_policies, get_alphas(off_batches),
-                    baselinekind=baseline, 
-                    result='samples'
-                )
-                grad = torch.mean(grad_samples,0)
-            elif estimator == 'reinforce':
-                #TODO offpolicy reinforce
-                raise NotImplementedError
-            else:
-                raise NotImplementedError
+            results.append(log_row)
 
-        if estimate_var:
-            # Variance of gradients samples
-            centered = grad_samples - grad.unsqueeze(0)
-            grad_cov = (batchsize/(batchsize - 1) * 
-                        torch.mean(torch.bmm(centered.unsqueeze(2), 
+    # Cleaning logger
+    # ===============
+    if logger is not None:
+        logger.close()
+
+    return results
+
+
+def reinforce_step(env, policy, horizon, *,
+                    batchsize = 100, 
+                    disc = 0.99,
+                    stepper = ConstantStepper(1e-2),
+                    entropy_coeff = 0.,
+                    action_filter = None,
+                    estimator = 'gpomdp',
+                    baseline = 'avg',
+                    shallow = False,
+                    seed = None,
+                    estimate_var = False,
+                    test_batchsize = False,
+                    info_key = 'danger',
+                    log_params = False,
+                    log_grad = False,
+                    parallel = False,
+                    verbose = 1):
+    
+    start = time.time()
+
+    # Seed agent
+    if seed is not None:
+        seed_all_agent(seed)
+    
+    # Preparing the log
+    log_row = {}
+    
+    # Showing info
+    params = policy.get_flat()
+    if verbose > 1:
+        print('Parameters:', params)
+    
+    # Test the corresponding deterministic policy
+    if test_batchsize:
+        test_batch = generate_batch(env, policy, horizon, test_batchsize, 
+                                    action_filter=action_filter,
+                                    seed=seed,
+                                    n_jobs=parallel,
+                                    deterministic=True,
+                                    key=info_key)
+        log_row['TestPerf'] = performance(test_batch, disc)
+        log_row['TestInfo'] = mean_sum_info(test_batch).item()
+        log_row['UTestPerf'] = performance(test_batch, 1)
+    
+    # Collect trajectories
+    batch = generate_batch(env, policy, horizon, batchsize, 
+                            action_filter=action_filter, 
+                            seed=seed, 
+                            n_jobs=parallel,
+                            key=info_key)
+    log_row['Perf'] = performance(batch, disc)
+    log_row['Info'] = mean_sum_info(batch).item()
+    log_row['UPerf'] = performance(batch, disc=1.)
+    log_row['AvgHorizon'] = avg_horizon(batch)
+    log_row['Exploration'] = policy.exploration().item()
+    log_row['Entropy'] = policy.entropy(0.).item()
+        
+    # Estimate policy gradient
+    result = 'samples' if estimate_var else 'mean'
+    if estimator == 'gpomdp' and entropy_coeff == 0:
+        grad_samples = gpomdp_estimator(batch, disc, policy, 
+                                        baselinekind=baseline, 
+                                        shallow=shallow,
+                                        result=result)
+    elif estimator == 'gpomdp':
+        grad_samples = egpomdp_estimator(batch, disc, policy, entropy_coeff,
+                                         baselinekind=baseline,
+                                         shallow=shallow,
+                                         result=result)
+    elif estimator == 'reinforce':
+        grad_samples = reinforce_estimator(batch, disc, policy, 
+                                           baselinekind=baseline, 
+                                           shallow=shallow,
+                                           result=result)
+    else:
+        raise ValueError('Invalid policy gradient estimator')
+    
+    if estimate_var:
+        grad = torch.mean(grad_samples, 0)
+        centered = grad_samples - grad.unsqueeze(0)
+        grad_cov = (batchsize/(batchsize - 1) * 
+                    torch.mean(torch.bmm(centered.unsqueeze(2), 
                                             centered.unsqueeze(1)),0))
-            grad_var = torch.sum(torch.diag(grad_cov)).item() #for humans
-            log_row['SampleVar'] = grad_var
-        
-            # Variance of the sample mean
-            log_row['VarMean'] = var_mean(grad_samples)[1]
+        grad_var = torch.sum(torch.diag(grad_cov)).item() #for humans
+    else:
+        grad = grad_samples
+                
+    if verbose > 1:
+        print('Gradients: ', grad)
+    log_row['GradNorm'] = torch.norm(grad).item()
+    if estimate_var:
+        log_row['SampleVar'] = grad_var
+            
+    # Select meta-parameters
+    stepsize = stepper.next(grad)
+    if not torch.is_tensor(stepsize):
+        stepsize = torch.tensor(stepsize)
+    log_row['StepSize'] = torch.norm(stepsize).item()
+    log_row['BatchSize'] = batchsize
+    
+    # Update policy parameters
+    new_params = params + stepsize * grad
+    policy.set_from_flat(new_params)
+    
+    # Log
+    log_row['Time'] = time.time() - start
+    if log_params:
+        for i in range(policy.num_params()):
+            log_row['param%d' % i] = params[i].item()
+    if log_grad:
+        for i in range(policy.num_params()):
+            log_row['grad%d' % i] = grad[i].item()
+    
+    return log_row    
 
-        if verbose > 1:
-            print('Gradients: ', grad)
-        log_row['GradNorm'] = torch.norm(grad).item()
-        
-        #Select meta-parameters
-        stepsize = stepper.next(grad)
-        if not torch.is_tensor(stepsize):
-            stepsize = torch.tensor(stepsize)
-        log_row['StepSize'] = torch.norm(stepsize).item()
-        log_row['BatchSize'] = batchsize
-        
-        #Update policy parameters
-        new_params = params + stepsize * grad
-        policy.set_from_flat(new_params)
-        
-        #Log
-        log_row['Time'] = time.time() - start
-        if log_params:
-            for i in range(policy.num_params()):
-                log_row['param%d' % i] = params[i].item()
-        if log_grad:
-            for i in range(policy.num_params()):
-                log_row['grad%d' % i] = grad[i].item()
-        logger.write_row(log_row, it)
-        
-        #Save parameters
-        if save_params and it % save_params == 0:
-            logger.save_params(params, it)
-        
-        #Next iteration
-        it += 1
+"""Testing"""
+if __name__ == '__main__':
+    from potion.envs.lq import LQ
+    from potion.actors.continuous_policies import ShallowGaussianPolicy
+    from potion.common.logger import Logger
+
+    env        = LQ(max_pos=10, max_action = float('inf'))
+    state_dim  = sum(env.observation_space.shape)
+    action_dim = sum(env.action_space.shape)
+
+    policy = ShallowGaussianPolicy(
+        state_dim, # input size
+        action_dim, # output size
+        mu_init = 0*torch.ones(1), # initial mean parameters
+        logstd_init = 0.0, # log of standard deviation
+        learn_std = False # We are NOT going to learn the variance parameter
+    )
+
+    seed = 42
+    env.seed(seed)
+
+    # log_dir     = 'logs_test'
+    # log_name    = 'reinforce'
+    # logger      = Logger(directory=log_dir, name = log_name, modes=['csv'])
+    logger = None
+
+    res =  reinforce(env, policy, env.horizon,
+                     action_filter = None,
+                     batchsize = 100, 
+                     baseline = 'peters',
+                     disc = 0.99,
+                     entropy_coeff = 0.,
+                     estimate_var = False,
+                     estimator = 'gpomdp',
+                     info_key = 'danger',
+                     iterations = 100,
+                     logger = logger,
+                     log_params = False,
+                     log_grad = False,
+                     parallel = False,
+                     render = False,
+                     save_params = 100000,
+                     seed = None,
+                     shallow = isinstance(policy,ShallowGaussianPolicy),
+                     stepper = ConstantStepper(1e-4),
+                     test_batchsize = 100,
+                     verbose = 1)
     
-    #Save final parameters
-    if save_params:
-        logger.save_params(params, it)
-    
-    #Cleanup
-    logger.close()
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    res = pd.DataFrame(res)
+    plt.plot(np.cumsum(res['BatchSize']), res['TestPerf'])
+    plt.xlabel('Trajectories')
+    plt.ylabel('Return')
+    plt.show()
