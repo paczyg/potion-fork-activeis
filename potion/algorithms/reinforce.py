@@ -13,7 +13,7 @@ from potion.common.misc_utils import performance, avg_horizon, mean_sum_info
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator, egpomdp_estimator
 from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent
-from potion.meta.steppers import ConstantStepper
+from potion.meta.steppers import ConstantStepper, Adam
 
 def reinforce(env, policy, horizon, *,
                     action_filter = None,
@@ -226,8 +226,12 @@ def reinforce_step(env, policy, horizon, *,
     log_row['BatchSize'] = batchsize
     
     # Update policy parameters
-    new_params = params + stepsize * grad
+    if isinstance(stepper,Adam):
+        new_params = params + stepsize
+    else:
+        new_params = params + stepsize * grad
     policy.set_from_flat(new_params)
+
     
     # Log
     log_row['Time'] = time.time() - start
