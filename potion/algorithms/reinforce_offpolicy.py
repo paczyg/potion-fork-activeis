@@ -100,7 +100,7 @@ def reinforce_offpolicy(env, policy, horizon, *,
 
     # Algorithm preparation
     # =====================
-
+    
     # Initial data for first offline CE estimation
     if ce_use_offline_data:
         offline_policies = [policy]
@@ -122,6 +122,8 @@ def reinforce_offpolicy(env, policy, horizon, *,
     results = []
     for it in range(iterations):
 
+        if verbose:
+            print('\nIteration ', it)
         log_row, offline_policies, offline_batches = reinforce_offpolicy_step(**algo_params, offline_policies=offline_policies, offline_batches=offline_batches)
         
         if logger is not None:
@@ -169,7 +171,7 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     
     # Showing info
     params = policy.get_flat()
-    if verbose > 0:
+    if verbose > 1:
         print('Parameters:', params)
     
     # Preparing log
@@ -252,11 +254,11 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     if biased_offpolicy:
         # Reusing all the samples used for CE optimization
         if offline_policies:
-            gradient_estimation_policies.append(*offline_policies)
-            gradient_estimation_batches.append(*offline_batches)
+            gradient_estimation_policies += offline_policies
+            gradient_estimation_batches  += offline_batches
         if ce_policies:
-            gradient_estimation_policies.append(*ce_policies)
-            gradient_estimation_batches.append(*ce_batches)
+            gradient_estimation_policies += ce_policies
+            gradient_estimation_batches  += ce_batches
     
     # Off-policy gradient stimation
     # =============================
@@ -332,8 +334,8 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     # =============
     # If offline data for CE estimation is provided, return the new offline data for the next iteration
     if offline_policies:
-        next_offline_policies = [gradient_estimation_policies[0]]
-        next_offline_bathces  = [gradient_estimation_batches[0]]
+        next_offline_policies = gradient_estimation_policies
+        next_offline_bathces  = gradient_estimation_batches
     else:
         next_offline_policies = None
         next_offline_bathces  = None
