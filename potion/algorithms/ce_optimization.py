@@ -2,15 +2,18 @@
 import numpy as np
 import copy
 import pandas as pd
+import math
 import torch
+import torch.nn
 
+from ..actors.continuous_policies import ShallowGaussianPolicy
 from potion.estimation.importance_sampling import multiple_importance_weights
 from potion.common.misc_utils import unpack, concatenate
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator
 from potion.simulation.trajectory_generators import generate_batch
 from potion.estimation.offpolicy_gradients import _shallow_multioff_gpomdp_estimator
 
-def gradients(batch, discount, policy, estimator='reinforce', baseline='zero'):
+def gradients(batch, discount, policy, estimator='reinforce', baseline='zero', shallow=True):
     """
     Compute on-policy per-trajectory policy gradients:
         grad_\theta(log policy(trajectory;\theta) * reward(trajectory))
@@ -29,16 +32,15 @@ def gradients(batch, discount, policy, estimator='reinforce', baseline='zero'):
     grad_samples: (#trajectories,#parameters) tensor with gradients
     """
 
-    is_shallow = True   # TODO: For now we only deal with shallow policies
     if estimator == 'gpomdp':
         grad_samples = gpomdp_estimator(batch, discount, policy, 
                             baselinekind=baseline, 
-                            shallow=is_shallow,
+                            shallow=shallow,
                             result='samples')
     elif estimator == 'reinforce':
         grad_samples = reinforce_estimator(batch, discount, policy, 
                             baselinekind=baseline, 
-                            shallow=is_shallow,
+                            shallow=shallow,
                             result='samples')
     else:
         raise ValueError('Invalid policy gradient estimator')
@@ -55,16 +57,17 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
               optimize_variance=True):
     """
     TODO: funziona solo per policy gaussiane, lineari nella media (ShallowGaussianPolicy e DeepGaussianPolicy).
-    TODO: Controllare tipo di target_policy e mis_policies
     """
 
     # Parse parameters
     # ----------------
+    assert target_policy.n_actions==1, "Only scalar policies are accepted (for now...)"
     if not isinstance(mis_policies, list):
         mis_policies = [mis_policies]
     if not isinstance(mis_batches,list):
         mis_batches = [mis_batches]
     assert len(mis_policies)==len(mis_batches), "Parameters mis_policies and mis_batches do not have same lenght"
+    is_shallow = isinstance(target_policy,ShallowGaussianPolicy)
 
     # Data for CE estimation
     # ----------------------
@@ -76,40 +79,60 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
     else:
         mu_features = states                            #[N,H,FS]
     
-    grad_samples = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline=baseline)
+    grad_samples = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline=baseline, shallow=is_shallow)
     coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
                     * torch.linalg.norm(grad_samples,dim=1)    #[N]
 
     # Maximize CE
     # -----------
     opt_policy = copy.deepcopy(target_policy)
-    #TODO: detacha grad_fn dal tensore di media e varianza??
-    if 1 == target_policy.n_actions:
-        if optimize_mean:
-            # Mean
-            ## num[FS] = sum_n W[n] * sum_t a[n,t] phi(s[n,t]).T
-            num = torch.einsum('n,nj->j', coefficients, (actions*mu_features).sum(1) )  #[FS]
-            ## den[N,FS,FS] = sum_t phi[n,t,FS]*phi[n,t,FS].T
-            den = torch.einsum('nti,ntj->ntij',mu_features,mu_features).sum(1)          #[N,FS,FS]
-            ## den[FS,FS] = sum_n W[n] den[n,FS,FS]
-            den = torch.einsum('n,nij->ij',coefficients,den)                            #[FS,FS]
-            opt_mean_params = num @ torch.inverse(den)                                  #[FS]
-            opt_policy.set_loc_params(opt_mean_params)
+    if is_shallow:
+        # Optimized code for shallow exponential family distribution policies
+        with torch.no_grad():
+            if optimize_mean:
+                ## num[FS] = sum_n W[n] * sum_t a[n,t] phi(s[n,t]).T
+                num = torch.einsum('n,nj->j', coefficients, (actions*mu_features).sum(1) )  #[FS]
+                ## den[N,FS,FS] = sum_t phi[n,t,FS]*phi[n,t,FS].T
+                den = torch.einsum('nti,ntj->ntij',mu_features,mu_features).sum(1)          #[N,FS,FS]
+                ## den[FS,FS] = sum_n W[n] den[n,FS,FS]
+                den = torch.einsum('n,nij->ij',coefficients,den)                            #[FS,FS]
+                opt_mean_params = num @ torch.inverse(den)                                  #[FS]
+                opt_policy.set_loc_params(opt_mean_params)
 
-            if any(opt_mean_params.isnan()):
-                raise ValueError
+                if any(opt_mean_params.isnan()):
+                    raise ValueError
 
-        if optimize_variance:
-            # Variance
-            mu = opt_policy.mu(states)                                            #[N,H,A=1]
-            ## num[N] = sum_t (a[N,t] - mu[N,t])^2
-            num = ((actions - mu)**2).sum(1)                                      #[N,A=1]
-            ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
-            opt_var = (coefficients@num) / (horizons@coefficients)                #[1]
-            opt_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
-
+            if optimize_variance:
+                mu = opt_policy.mu(states)                                            #[N,H,A=1]
+                ## num[N] = sum_t (a[N,t] - mu[N,t])^2
+                num = ((actions - mu)**2).sum(1)                                      #[N,A=1]
+                ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
+                opt_var = (coefficients@num) / (horizons@coefficients)                #[1]
+                opt_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
     else:
-        raise NotImplementedError
+        # Gradient Ascent optimization for deep policies
+        if not optimize_mean:
+            [p.requires_grad_(False) for p in opt_policy.mu.parameters()]
+        if optimize_variance:
+            opt_policy.logstd = torch.nn.Parameter(opt_policy.logstd)
+        else:
+            opt_policy.logstd.requires_grad_(False)
+
+        optimizer = torch.optim.SGD(opt_policy.parameters(), lr=1e-4)
+        optimizer.zero_grad()
+        loss = lambda coefficients, logps: - torch.mean( coefficients * torch.sum(logps,1) )
+        # loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
+        # optimizer.step()
+
+        # TODO
+        # ce_minibatch = 1
+        # N = len(batch)
+        # for episode in range(math.floor(N/ce_minibatch)):
+        #     optimizer.zero_grad()
+        #     loss(coefficients[episode:episode+ce_minibatch], opt_policy.log_pdf(states[episode:episode+ce_minibatch], actions[episode:episode+ce_minibatch])).backward()
+        #     optimizer.step()
+        # opt_policy.get_flat()
+
 
     return opt_policy
 
@@ -251,7 +274,8 @@ def ce_optimization(env, target_policy, batchsizes, *,
          action_filter=None,
          optimize_mean=True,
          optimize_variance=True,
-         reuse_samples = True):
+         reuse_samples = True,
+         seed = None):
     """
     Parameters
     ----------
@@ -265,6 +289,8 @@ def ce_optimization(env, target_policy, batchsizes, *,
         Whether to reuse or not samples collected during the iterations of CE optimization
         for the current behavioural policy optimization.
         If False, only the last batch is used to estimate and optimize the CE loss for the current behavioural policy
+    seed : int
+        Random seed (None for random behavior)
 
     Returns
     -------
@@ -279,8 +305,6 @@ def ce_optimization(env, target_policy, batchsizes, *,
     # Parse parameters
     # ----------------
     window = None if reuse_samples else -1
-
-    seed = None
 
     # Compute optimal importance sampling distributions
     # ------------------------------------------------
