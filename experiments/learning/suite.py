@@ -26,6 +26,7 @@ class MySuite(PyExperimentSuite):
             self.env = LQ(5,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
         elif params['path'] == 'results_cartpole':
             self.env = gym.make('ContCartPole-v0')
+            self.env.gamma = 1
         else:
             raise NotImplementedError
         self.env.horizon = params['horizon']
