@@ -38,9 +38,9 @@ class MySuite(PyExperimentSuite):
         self.policy = ShallowGaussianPolicy(
             state_dim, # input size
             action_dim, # output size
-            mu_init = params["mu_init"]*torch.ones(state_dim),
+            mu_init     = params["mu_init"]*torch.ones(state_dim),
             logstd_init = params["logstd_init"]*torch.ones(action_dim),
-            learn_std = params["learn_std"]
+            learn_std   = params["learn_std"]
         )
         
         self.stepper = eval(params["stepper"])
@@ -51,10 +51,10 @@ class MySuite(PyExperimentSuite):
             # Initial data for first offline CE estimation
             if params['ce_use_offline_data']:
                 self.offline_policies = [self.policy]
-                self.offline_batches = [generate_batch(self.env, self.policy, self.env.horizon, params['batchsize'], seed=self.seed)]
+                self.offline_batches  = [generate_batch(self.env, self.policy, self.env.horizon, params['batchsize'], seed=self.seed)]
             else:
                 self.offline_policies = None
-                self.offline_batches = None
+                self.offline_batches  = None
 
     def iterate(self, params, rep, n):
         # Offpolicy algorithm
