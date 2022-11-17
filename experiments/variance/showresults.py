@@ -1,11 +1,10 @@
-from suite import MySuite
-import potion.visualization.notebook_utils as nu
-
 import os
 import numpy as np
 import pandas as pd
 import scipy.stats as st
 from matplotlib import pyplot as plt
+
+from expsuite import PyExperimentSuite
 
 """
 ***************************************************************************************************
@@ -19,7 +18,7 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
     stats = df.groupby(xkey)[key].agg(['mean', 'std', 'count'])
     xs = stats.index.values
     ys = stats['mean']
-    ci_lb, ci_ub = st.norm.interval(0.68, loc=stats['mean'], scale=stats['std']/np.sqrt(stats['count']))
+    ci_lb, ci_ub = st.norm.interval(0.68, loc=stats['mean'], scale=stats['std'])
     ax.plot(xs,ys, *plt_args, **plt_kwargs)
     ax.fill_between(xs, ci_lb, ci_ub, alpha=.1)
 
@@ -45,7 +44,7 @@ def get_dataframe(suite, experiment_name, xkey):
                                             Plot 
 ***************************************************************************************************
 """
-mysuite = MySuite(config='experiments.cfg')
+mysuite = PyExperimentSuite(config='experiments.cfg')
 
 # Test 1
 # Varying initial policy mean
@@ -108,26 +107,6 @@ fig.tight_layout()
 plt.show()
 
 # Test 4
-# Varying batchsizes
-# -----------------------------------------------------
-df = get_dataframe(mysuite, experiment_name='batchsizes', xkey='n_per_it')
-
-fig,axes = plt.subplots(1,2)
-
-plot_ci(df,'grad_is','n_per_it', axes[0], 'o-')
-plot_ci(df,'grad_mc','n_per_it', axes[0], 's--')
-axes[0].set(xlabel='n_per_it', ylabel='mean of gradients')
-axes[0].legend(["IS", "MC"])
-
-plot_ci(df,'var_grad_is','n_per_it', axes[1], 'o-')
-plot_ci(df,'var_grad_mc','n_per_it', axes[1], 's--')
-axes[1].set(xlabel='n_per_it', ylabel='var of mean of gradients')
-axes[1].legend(["IS", "MC"])
-
-fig.tight_layout()
-plt.show()
-
-# Test 5
 # Varying state dimensions
 # -----------------------------------------------------
 df = get_dataframe(mysuite, experiment_name='dimensions', xkey='state_dim')
