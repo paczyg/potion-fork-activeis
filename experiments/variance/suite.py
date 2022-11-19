@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import gym
 
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
@@ -16,25 +17,25 @@ class MySuite(PyExperimentSuite):
 
         self.seed   = params['seed']*rep
 
-        state_dim   = params['state_dim']
-        mu_init     = params['mu_init']
-        logstd_init = params['logstd_init']
-        horizon     = params['horizon']
-
         # Environment
         # -----------
-        self.env = LQ(state_dim, 1, max_pos=10, max_action = float('inf'), random=False)
-        self.env.horizon = horizon
+        if params['env'] == 'lq':
+            self.env = LQ(params['state_dim'], 1, max_pos=10, max_action = float('inf'), random=False)
+        elif params['env'] == 'cartpole':
+            self.env = gym.make('ContCartPole-v0')
+            self.env.gamma = 1
+        self.env.horizon = params['horizon']
         self.env.seed(self.seed)
 
         # Target Policy
         # -------------
+        state_dim = gym.spaces.utils.flatdim(self.env.observation_space)
         self.target_policy = ShallowGaussianPolicy(
             state_dim, # input size
             1, # output size
-            mu_init = mu_init*torch.ones(state_dim), # initial mean parameters
-            logstd_init = logstd_init, # log of standard deviation
-            learn_std = False # We are NOT going to learn the variance parameter
+            mu_init = params['mu_init']*torch.ones(state_dim),
+            logstd_init = params['logstd_init'],
+            learn_std = False
         )
 
     def iterate(self, params, rep, n):
@@ -105,7 +106,5 @@ class MySuite(PyExperimentSuite):
         return results
 
 if __name__ == "__main__":
-    mysuite = MySuite(config="experiments.cfg", numcores=1)
-    print("*** Test start ***")
+    mysuite = MySuite()
     mysuite.start()
-    print("*** Test end ***")
