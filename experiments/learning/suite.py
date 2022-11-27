@@ -20,11 +20,9 @@ class MySuite(PyExperimentSuite):
 
         # Environment
         # ===========
-        if params['path'] == 'results_lq_s1':
-            self.env = LQ(1,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
-        elif params['path'] == 'results_lq_s5':
-            self.env = LQ(5,1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
-        elif params['path'] == 'results_cartpole':
+        if params['environment'] == 'lq':
+            self.env = LQ(params['state_dim'],1,max_pos=10, max_action = float('inf'), sigma_noise=params['sigma_noise'], horizon=params["horizon"])
+        elif params['environment'] == 'cartpole':
             self.env = gym.make('ContCartPole-v0')
             self.env.gamma = 1
         else:
@@ -48,7 +46,7 @@ class MySuite(PyExperimentSuite):
 
         # Algorithm
         # =========
-        if 'offpolicy/' in params['name']:
+        if 'offpolicy' in params['name']:
             # Initial data for first offline CE estimation
             if params['ce_use_offline_data']:
                 self.offline_policies = [self.policy]
@@ -95,7 +93,7 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='lq_s1.cfg', numcores=1)
+    # mysuite = MySuite(config='cartpole.cfg', experiment='test_offpolicy', numcores=1)
     
     # Command line
     mysuite = MySuite()
