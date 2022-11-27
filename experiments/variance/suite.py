@@ -50,7 +50,7 @@ class MySuite(PyExperimentSuite):
         ## Cross Entropy behavioural policy optimization, with trajectories collection
         opt_ce_policy, ce_policies, ce_batches = ce_optimization(
             self.env, self.target_policy, ce_batchsizes,
-            estimator=params["estimator"], baseline=params["baseline"], seed=self.seed)
+            divergence = params['divergence'], estimator=params['estimator'], baseline=params['baseline'], seed=self.seed)
 
         ## Selection of batches and policies used during CE optimization
         defensive = True

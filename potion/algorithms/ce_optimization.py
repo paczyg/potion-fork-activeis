@@ -51,13 +51,12 @@ def get_alphas(mis_batches):
     return list(np.array([len(b) for b in mis_batches]) / sum([len(b) for b in mis_batches]))
 
 def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
-              estimator='gpomdp',
-              baseline = 'avg',
-              optimize_mean = True,
-              optimize_variance=True):
-    """
-    TODO: funziona solo per policy gaussiane, lineari nella media (ShallowGaussianPolicy e DeepGaussianPolicy).
-    """
+              baseline            = 'avg',
+              divergence          = 'kl',
+              estimator           = 'gpomdp',
+              grad_norm_threshold = 1,
+              optimize_mean       = True,
+              optimize_variance   = True):
 
     # Parse parameters
     # ----------------
@@ -74,55 +73,76 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
     batch                       = concatenate(mis_batches)
     states, actions, _, mask, _ = unpack(batch)         #[N,H,*]
     horizons                    = torch.sum(mask,1)     #[N]
-    if target_policy.feature_fun is not None:
+    if is_shallow and target_policy.feature_fun is not None:
         mu_features = target_policy.feature_fun(states) #[N,H,FS]
     else:
         mu_features = states                            #[N,H,FS]
-    
     grad_samples = gradients(batch, env.gamma, target_policy, estimator=estimator, baseline=baseline, shallow=is_shallow)
-    coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
-                    * torch.linalg.norm(grad_samples,dim=1)    #[N]
 
     # Maximize CE
     # -----------
     opt_policy = copy.deepcopy(target_policy)
-    if is_shallow:
+    if is_shallow and divergence == 'kl':
+        coefficients_kl = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+                        * torch.linalg.norm(grad_samples,dim=1)    #[N]
         # Optimized code for shallow exponential family distribution policies
         with torch.no_grad():
             if optimize_mean:
                 ## num[FS] = sum_n W[n] * sum_t a[n,t] phi(s[n,t]).T
-                num = torch.einsum('n,nj->j', coefficients, (actions*mu_features).sum(1) )  #[FS]
+                num = torch.einsum('n,nj->j', coefficients_kl, (actions*mu_features).sum(1) )   # [FS]
                 ## den[N,FS,FS] = sum_t phi[n,t,FS]*phi[n,t,FS].T
-                den = torch.einsum('nti,ntj->ntij',mu_features,mu_features).sum(1)          #[N,FS,FS]
+                den = torch.einsum('nti,ntj->ntij',mu_features,mu_features).sum(1)              # [N,FS,FS]
                 ## den[FS,FS] = sum_n W[n] den[n,FS,FS]
-                den = torch.einsum('n,nij->ij',coefficients,den)                            #[FS,FS]
-                opt_mean_params = num @ torch.inverse(den)                                  #[FS]
+                den = torch.einsum('n,nij->ij',coefficients_kl,den)                             # [FS,FS]
+                opt_mean_params = num @ torch.inverse(den)                                      # [FS]
                 opt_policy.set_loc_params(opt_mean_params)
 
                 if any(opt_mean_params.isnan()):
                     raise ValueError
 
             if optimize_variance:
-                mu = opt_policy.mu(states)                                            #[N,H,A=1]
+                mu = opt_policy.mu(states)                                            # [N,H,A=1]
                 ## num[N] = sum_t (a[N,t] - mu[N,t])^2
-                num = ((actions - mu)**2).sum(1)                                      #[N,A=1]
+                num = ((actions - mu)**2).sum(1)                                      # [N,A=1]
                 ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
-                opt_var = (coefficients@num) / (horizons@coefficients)                #[1]
+                opt_var = (coefficients_kl@num) / (horizons@coefficients_kl)          # [1]
                 opt_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
     else:
         # Gradient Ascent optimization for deep policies
+
+        # Set up parameters for the optimization
         if not optimize_mean:
             [p.requires_grad_(False) for p in opt_policy.mu.parameters()]
         if optimize_variance:
             opt_policy.logstd = torch.nn.Parameter(opt_policy.logstd)
         else:
             opt_policy.logstd.requires_grad_(False)
-
         optimizer = torch.optim.SGD(opt_policy.parameters(), lr=1e-4)
         optimizer.zero_grad()
-        loss = lambda coefficients, logps: - torch.mean( coefficients * torch.sum(logps,1) )
-        # loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
-        # optimizer.step()
+
+        # Construct loss function
+        if divergence == 'kl':
+            # KL divergence to the theoretically optimal behavioural policy
+            loss = lambda coefficients, logps: - torch.mean( coefficients * torch.sum(logps,1) )
+            with torch.no_grad():
+                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+                                * torch.linalg.norm(grad_samples,dim=1)    #[N]
+        elif divergence == 'chi2':
+            # Chi^2 divergence to the theoretically optimal behavioural policy
+            loss = lambda coefficients, logps: torch.mean( coefficients / torch.exp(torch.sum(logps,1)) )
+            with torch.no_grad():
+                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+                                * torch.exp( torch.sum(target_policy.log_pdf(states, actions), 1) ) \
+                                * torch.linalg.norm(grad_samples,dim=1)**2      #[N]
+
+        # Optimize
+        loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
+        while any([torch.norm(p.grad) > grad_norm_threshold for p in opt_policy.parameters()]):
+            optimizer.step()
+            # print('params',opt_policy.get_flat())
+            optimizer.zero_grad()
+            loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
+            # print('grad norm',[torch.norm(p.grad) for p in opt_policy.parameters()])
 
         # TODO
         # ce_minibatch = 1
@@ -269,18 +289,29 @@ def algo(env, target_policy, n_per_it, n_ce_iterations, *,
     return results, stats, algo_info
 
 def ce_optimization(env, target_policy, batchsizes, *,
-         estimator='gpomdp',
-         baseline='zero',
-         action_filter=None,
-         optimize_mean=True,
-         optimize_variance=True,
-         reuse_samples = True,
-         seed = None):
+                    action_filter=None,
+                    baseline='zero',
+                    divergence = 'kl',
+                    estimator='gpomdp',
+                    optimize_mean=True,
+                    optimize_variance=True,
+                    reuse_samples = True,
+                    seed = None):
     """
     Parameters
     ----------
-    ce_batchsizes : list
+    env: environment
+    target_policy : the target policy for gradient estimation
+    batchsizes : list
         List with the number of samples to be used at every CE optimization epoch
+    estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
+        suffers from less variance
+    baseline: control variate to be used in the gradient estimator. Either
+        'avg' (average reward, default), 'peters' (variance-minimizing) or
+        'zero' (no baseline)
+    action_filter: function to apply to the agent's action before feeding it to 
+        the environment, not considered in gradient estimation. By default,
+        the action is clipped to satisfy evironmental boundaries
     optimize_mean : boolean
         Whether or not to optimize the mean of the behavioural policy
     optimize_variance : boolean
@@ -320,7 +351,8 @@ def ce_optimization(env, target_policy, batchsizes, *,
                            n_jobs=False)
         )
         try:
-            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:], 
+            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:],
+                                    divergence = divergence,
                                     estimator=estimator,
                                     baseline=baseline,
                                     optimize_mean=optimize_mean,
