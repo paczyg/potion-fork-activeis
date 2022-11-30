@@ -49,8 +49,7 @@ class MySuite(PyExperimentSuite):
 
         # Logger
         # ======
-        self.logger = Logger(directory=os.path.join(params['path'],params['name']), name = 'STORM-PG')
-        time.sleep(5)
+        self.logger = Logger(directory=os.path.join(params['path'],params['name']), name = str(rep))
 
     def iterate(self, params, rep, n):
 
