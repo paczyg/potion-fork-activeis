@@ -75,9 +75,6 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='lq_s1_stormpg.cfg', delete=True, numcores=1)
-    
-    # Command line
     mysuite = MySuite()
     
     mysuite.start()
