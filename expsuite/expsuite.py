@@ -149,7 +149,9 @@ class PyExperimentSuite(object):
             help="like browse, but only shows name and progress bar",
         )
 
+        make_list = lambda x: [x] if not isinstance(x,list) and x else x
         options, args = argparser.parse_known_args()
+        options.experiments = make_list(options.experiments)
         self.options = options
         return options, args
 
@@ -631,7 +633,7 @@ class PyExperimentSuite(object):
         # read main configuration file
         paramlist = []
         for exp in self.cfgparser.sections():
-            if not self.options.experiments or exp == self.options.experiments:
+            if not self.options.experiments or exp in self.options.experiments:
                 params = self.items_to_params(self.cfgparser.items(exp))
                 params["name"] = exp
                 paramlist.append(params)
