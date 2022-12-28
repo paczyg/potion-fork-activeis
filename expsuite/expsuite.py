@@ -73,6 +73,7 @@ class PyExperimentSuite(object):
     def parse_opt(self,
             config='experiments.cfg',
             numcores=cpu_count(),
+            chunksize=None,
             delete=False,
             experiment=None,
             browse=False,
@@ -97,6 +98,14 @@ class PyExperimentSuite(object):
             type=int,
             default=numcores,
             help="number of processes you want to use, default is %i" % cpu_count(),
+        )
+        argparser.add_argument(
+            "--chunksize",
+            action="store",
+            default=chunksize,
+            type=int,
+            dest="chunksize",
+            help="chunks submitted to the process pool"
         )
         argparser.add_argument(
             "-d",
@@ -622,7 +631,7 @@ class PyExperimentSuite(object):
         # read main configuration file
         paramlist = []
         for exp in self.cfgparser.sections():
-            if not self.options.experiments or exp in self.options.experiments:
+            if not self.options.experiments or exp == self.options.experiments:
                 params = self.items_to_params(self.cfgparser.items(exp))
                 params["name"] = exp
                 paramlist.append(params)
@@ -674,7 +683,7 @@ class PyExperimentSuite(object):
         else:
             # create worker processes
             pool = Pool(processes=self.options.ncores)
-            pool.map(mp_runrep, explist)
+            pool.map(mp_runrep, explist, chunksize=self.options.chunksize)
 
         return True
 
