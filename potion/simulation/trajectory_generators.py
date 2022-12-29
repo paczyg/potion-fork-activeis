@@ -40,7 +40,7 @@ def sequential_episode_generator(env, policy, horizon=float('inf'), max_episodes
             except:
                 pass
         while not done and t < horizon:
-            s = np.array(s, dtype=np.float)
+            s = np.array(s, dtype=float)
             s = torch.tensor(s, dtype=torch.float).view(-1)
             a = policy.act(s, deterministic)
             if not torch.is_tensor(a):
@@ -93,7 +93,7 @@ def parallel_episode_generator(env, policy, horizon=float('inf'), action_filter=
         done = False
         t = 0
         while not done and t < horizon:
-            s = np.array(s, dtype=np.float)
+            s = np.array(s, dtype=float)
             s = torch.tensor(s, dtype=torch.float).view(-1)
             a = policy.act(s, deterministic)
             a = torch.tensor(a, dtype=torch.float).view(-1)
@@ -120,7 +120,7 @@ def light_episode_generator(env, policy, horizon=float('inf'), disc=1., action_f
         uret = 0.
         info_sum = 0.
         while not done and t < horizon:
-            s = np.array(s, dtype=np.float)
+            s = np.array(s, dtype=float)
             s = torch.tensor(s, dtype=torch.float).view(-1)
             a = policy.act(s)
             a = torch.tensor(a, dtype=torch.float).view(-1)
