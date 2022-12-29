@@ -51,16 +51,16 @@ class crash(LQ):
         self.seed()
         self.reset()
 
-    def reset(self, state=None):
+    def reset(self, *, seed = None, options = None):
         self.timestep = 0
-        if state is None:
+        if options is not None:
+            if 'state' in options:
+                self.state = np.array(options['state'])
+        else:
             self.state = np.array(self.np_random.uniform(low=self.max_pos/4,
                                                           high=self.max_pos))
-        else:
-            self.state = np.array(state)
-        # self.state[1] = 0.
 
-        return self.get_state()
+        return self.get_state(), {}
     
     def step(self, action, render=False):
         u = np.clip(np.ravel(np.atleast_1d(action)), -self.max_action, self.max_action)
@@ -78,7 +78,7 @@ class crash(LQ):
         
         end = self.timestep >= self.horizon or crash
         
-        return self.get_state(), -np.asscalar(cost), end, {'danger':int(crash)}
+        return self.get_state(), -np.asscalar(cost), end, False, {'danger':int(crash)}
     
     def render(self, mode='human', close=False):
         if close:

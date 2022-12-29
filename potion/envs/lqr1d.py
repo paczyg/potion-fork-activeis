@@ -53,15 +53,17 @@ class lqr1d(gym.Env):
         cost = self.state ** 2 * self.Q + u ** 2 * self.R
 
         self.state = x_1
-        return self.state, -np.asscalar(cost), False, {}
+        return self.state, -np.asscalar(cost), False, False, {}
 
-    def reset(self, state=None):
-        if state is None:
-            self.state = np.random.choice(self.initial_states)
+    def reset(self, *, seed = None, options = None):
+
+        if options is not None:
+            if 'state' in options:
+                self.state = np.array(options['state'])
         else:
-            self.state = np.array(state)
+            self.state = np.random.choice(self.initial_states)
 
-        return self.state
+        return self.state, {}
     
     def seed(self, seed=None):
         np.random.seed(seed)

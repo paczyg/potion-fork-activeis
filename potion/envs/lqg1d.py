@@ -71,16 +71,18 @@ class LQG1D(gym.Env):
             if abs(self.state[0]) <= 2 and abs(u) <= 2:
                 return self.get_state(), 0, False, {}
             return self.get_state(), -1, False, {}
-        return self.get_state(), -np.asscalar(cost), False, {}
+        return self.get_state(), -np.asscalar(cost), False, False, {}
 
-    def reset(self, state=None):
-        if state is None:
+    def reset(self, *, seed = None, options = None):
+
+        if options is not None:
+            if 'state' in options:
+                self.state = np.array(options['state'])
+        else:
             self.state = np.array([self.np_random.uniform(low=-self.max_pos,
                                                           high=self.max_pos)])
-        else:
-            self.state = np.array(state)
 
-        return self.get_state()
+        return self.get_state(), {}
 
     def get_state(self):
         return np.array(self.state)

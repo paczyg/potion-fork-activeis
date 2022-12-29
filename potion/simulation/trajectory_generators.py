@@ -31,7 +31,7 @@ def sequential_episode_generator(env, policy, horizon=float('inf'), max_episodes
         rewards = torch.zeros(horizon, dtype=torch.float)
         mask = torch.zeros(horizon, dtype=torch.float)
         infos = torch.zeros(horizon, dtype=torch.float)
-        s = env.reset()
+        s, _ = env.reset()
         done = False
         t = 0
         if render:
@@ -53,7 +53,7 @@ def sequential_episode_generator(env, policy, horizon=float('inf'), max_episodes
                 _a = int(a)
             else:
                 _a = a.numpy()
-            next_s, r, done, info = env.step(_a)
+            next_s, r, done, _, info = env.step(_a)
             if render:
                 try:
                     env.render()
@@ -89,7 +89,7 @@ def parallel_episode_generator(env, policy, horizon=float('inf'), action_filter=
         rewards = torch.zeros(horizon, dtype=torch.float)
         mask = torch.zeros(horizon, dtype=torch.float)
         infos = torch.zeros(horizon, dtype=torch.float)
-        s = env.reset()
+        s, _ = env.reset()
         done = False
         t = 0
         while not done and t < horizon:
@@ -99,7 +99,7 @@ def parallel_episode_generator(env, policy, horizon=float('inf'), action_filter=
             a = torch.tensor(a, dtype=torch.float).view(-1)
             if action_filter is not None:
                 a = action_filter(a)
-            next_s, r, done, info = env.step(a.numpy())
+            next_s, r, done, _, info = env.step(a.numpy())
             
             states[t] = s
             actions[t] = a
@@ -113,7 +113,7 @@ def parallel_episode_generator(env, policy, horizon=float('inf'), action_filter=
         return states, actions, rewards, mask, infos
     
 def light_episode_generator(env, policy, horizon=float('inf'), disc=1., action_filter=None, key=None):
-        s = env.reset()
+        s, _ = env.reset()
         done = False
         t = 0
         ret = 0.
@@ -126,7 +126,7 @@ def light_episode_generator(env, policy, horizon=float('inf'), disc=1., action_f
             a = torch.tensor(a, dtype=torch.float).view(-1)
             if action_filter is not None:
                 a = action_filter(a)
-            next_s, r, done, info = env.step(a.numpy())
+            next_s, r, done, _, info = env.step(a.numpy())
             ret += disc**t * r
             uret += r
             if key is not None and key in info:

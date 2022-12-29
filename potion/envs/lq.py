@@ -70,20 +70,22 @@ class LQ(gym.Env):
         self.state = xn.ravel()
         self.timestep += 1
         
-        return self.get_state(), -np.asscalar(cost), self.timestep >= self.horizon, {'danger':0} #done after fixed horizon (manual reset)
+        return self.get_state(), -np.asscalar(cost), self.timestep >= self.horizon, False, {'danger':0} #done after fixed horizon (manual reset)
 
-    def reset(self, state=None):
+    def reset(self, *, seed = None, options = None):
         """
         By default, uniform initialization 
         """
         self.timestep = 0
-        if state is None:
+        if options is not None:
+            if 'state' in options:
+                self.state = np.array(options['state'])
+        else:
             self.state = np.array(self.np_random.uniform(low=-1.0*np.ones(self.ds),
                                                           high=1.0*np.ones(self.ds)))
-        else:
-            self.state = np.array(state)
 
-        return self.get_state()
+        return np.array(self.state, dtype=np.float32), {}
+
 
     def get_state(self):
         return np.array(self.state)

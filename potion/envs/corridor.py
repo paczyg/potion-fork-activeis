@@ -62,12 +62,12 @@ class Corridor(gym.Env):
             reward = self.active_goals[self.state]
             self.active_goals[self.state] = 0
         
-        return self._get_state(), reward, done, {}
+        return self._get_state(), reward, done, False, {}
 
-    def reset(self,initial=None):
+    def reset(self, *, seed = None, options = None):
         self.state = random.choice(self.start)
         self.active_goals = dict(self.goals)
-        return self._get_state()
+        return self._get_state(), {}
     
     def render(self, mode='human', close=False):
         for i in range(self.height):

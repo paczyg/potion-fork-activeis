@@ -75,7 +75,7 @@ class MiniGolf(gym.Env):
 
         self.state = xn
 
-        return self.get_state(), float(reward), done, {'state': self.get_state(), 'action': action, 'danger': float(self.state) < -4}
+        return self.get_state(), float(reward), done, False, {'state': self.get_state(), 'action': action, 'danger': float(self.state) < -4}
 
     # Custom param for transfer
 
@@ -83,14 +83,16 @@ class MiniGolf(gym.Env):
         return np.asarray([np.ravel(self.putter_length), np.ravel(self.friction), np.ravel(self.hole_size),
                            np.ravel(self.sigma_noise ** 2)])
 
-    def reset(self, state=None):
-        if state is None:
+    def reset(self, *, seed = None, options = None):
+
+        if options is not None:
+            if 'state' in options:
+                self.state = np.array(options['state'])
+        else:
             self.state = np.array([self.np_random.uniform(low=self.min_pos,
                                                           high=self.max_pos)])
-        else:
-            self.state = np.array(state)
 
-        return self.get_state()
+        return self.get_state(), {}
 
     def get_state(self):
         return np.array(self.state)

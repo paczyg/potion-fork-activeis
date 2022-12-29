@@ -87,15 +87,18 @@ class ContCartPole(gym.Env):
             self.steps_beyond_done += 1
             reward = 0.0
 
-        return np.array(self.state, dtype='float'), reward, done, {}
+        return np.array(self.state, dtype='float'), reward, done, False, {}
 
-    def reset(self,initial=None):
-        if initial==None:
-            self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
+    def reset(self, *, seed = None, options = None):
+        if options is not None:
+            if 'initial' in options:
+                self.state = np.array(options['initial'])
         else:
-            self.state = initial
+            self.state = self.np_random.uniform(low=-0.05, high=0.05, size=(4,))
         self.steps_beyond_done = None
-        return np.array(self.state)
+        
+        return np.array(self.state, dtype=np.float32), {}
+
 
     def render(self, mode='human', close=False):
         if close:
