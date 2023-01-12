@@ -58,7 +58,7 @@ class ContCartPole(gym.Env):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
         state = self.state
         x, x_dot, theta, theta_dot = state
-        force = np.clip(action,-self.force_mag,self.force_mag)
+        force = float(np.clip(action,-self.force_mag,self.force_mag))
         costheta = math.cos(theta)
         sintheta = math.sin(theta)
         temp = (force + self.polemass_length * theta_dot * theta_dot * sintheta) / self.total_mass
