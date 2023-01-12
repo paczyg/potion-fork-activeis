@@ -109,6 +109,8 @@ def reinforce(env, policy, horizon, *,
         if verbose:
             print('\nIteration ', it)
         log_row = reinforce_step(**algo_params)
+        if verbose:
+            print(f'Iteration time {log_row['Time']}')
         
         if logger is not None:
             if not logger.ready:
