@@ -10,12 +10,9 @@ import potion.visualization.notebook_utils as notebook_utils
 from experiments import plot_utils
 from expsuite import PyExperimentSuite
 
-dir_script = os.path.dirname(__file__)
-dir_results = 'results'
-dir_base = os.path.join(dir_script,dir_results)
-
 #%% === CARTPOLE ================================================================================
-mysuite  = PyExperimentSuite(config=os.path.join(dir_script,'experiments.cfg'))
+mysuite  = PyExperimentSuite(config = 'experiments.cfg')
+dir_results = 'results'
 
 on_batchsize_list           = [10, 20, 50, 100]
 off_batchsize_list          = [10, 20, 50, 100]
@@ -25,9 +22,9 @@ stormpg_mini_batchsize_list = [10, 20, 50, 100]
 
 for i in range(len(on_batchsize_list)):
 
-    exp_on       = f"{dir_base}/onpolicy/batchsize{on_batchsize_list[i]}"
-    exp_off      = f'{dir_base}/offpolicy/batchsize{off_batchsize_list[i]}defensive_batch{off_defensive_batch[i]}'
-    exp_stormpg  = f"{dir_base}/stormpg/init_batchsize{stormpg_init_batchsize_list[i]}mini_batchsize{stormpg_mini_batchsize_list[i]}"
+    exp_on       = f"{dir_results}/onpolicy/batchsize{on_batchsize_list[i]}"
+    exp_off      = f'{dir_results}/offpolicy/batchsize{off_batchsize_list[i]}defensive_batch{off_defensive_batch[i]}'
+    exp_stormpg  = f"{dir_results}/stormpg/init_batchsize{stormpg_init_batchsize_list[i]}mini_batchsize{stormpg_mini_batchsize_list[i]}"
 
     plt.figure()
     plt.title(f'Batchsize {on_batchsize_list[i]}')

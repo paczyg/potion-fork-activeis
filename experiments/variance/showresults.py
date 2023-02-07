@@ -1,4 +1,5 @@
 import os
+import argparse
 import numpy as np
 import pandas as pd
 import scipy.stats as st
@@ -44,84 +45,105 @@ def get_dataframe(suite, experiment_name, xkey):
                                             Plot 
 ***************************************************************************************************
 """
-mysuite = PyExperimentSuite(config='experiments.cfg')
+mysuite = PyExperimentSuite(config='experiments_lq.cfg')
+# mysuite = PyExperimentSuite(config='experiments_lq_chi2.cfg')
+# mysuite = PyExperimentSuite(config='experiments_cartpole_chi2.cfg')
+experiments = ['means', 'stds', 'horizons', 'dimensions']
 
-# Test 1
+'''
+# Command line arguments
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--config', '-c', help='Experiment configuration file', type=str,
+                    default='experiments.cfg')
+parser.add_argument('--experiment', '-e', help='Experiments to be shown', dest='experiments', action = 'append',type=str,
+                    default=None)
+
+# Parse arguments
+args = parser.parse_known_args()[0]
+mysuite = PyExperimentSuite(config = args.config)
+if args.experiments is not None:
+    experiments = args.experiments
+else:
+    experiments = mysuite.cfgparser.sections()
+'''
+
+
 # Varying initial policy mean
 # -----------------------------------------------------
-df = get_dataframe(mysuite, experiment_name='means', xkey='mu_init')
+if 'means' in experiments:
+    df = get_dataframe(mysuite, experiment_name='means', xkey='mu_init')
 
-fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1,2)
 
-plot_ci(df,'grad_is','mu_init', axes[0], 'o-')
-plot_ci(df,'grad_mc','mu_init', axes[0], 's--')
-axes[0].set(xlabel='mu_init', ylabel='mean of gradients')
-axes[0].legend(["IS", "MC"])
+    plot_ci(df,'grad_is','mu_init', axes[0], 'o-')
+    plot_ci(df,'grad_mc','mu_init', axes[0], 's--')
+    axes[0].set(xlabel='mu_init', ylabel='mean of gradients')
+    axes[0].legend(["IS", "MC"])
 
-plot_ci(df,'var_grad_is','mu_init', axes[1], 'o-')
-plot_ci(df,'var_grad_mc','mu_init', axes[1], 's--')
-axes[1].set(xlabel='mu_init', ylabel='var of mean of gradients')
-axes[1].legend(["IS", "MC"])
+    plot_ci(df,'var_grad_is','mu_init', axes[1], 'o-')
+    plot_ci(df,'var_grad_mc','mu_init', axes[1], 's--')
+    axes[1].set(xlabel='mu_init', ylabel='var of mean of gradients')
+    axes[1].legend(["IS", "MC"])
 
-fig.tight_layout()
-plt.show()
+    fig.tight_layout()
+    plt.show()
 
-# Test 2
 # Varying initial policy variance
 # -----------------------------------------------------
-df = get_dataframe(mysuite, experiment_name='stds', xkey='logstd_init')
+if 'stds' in experiments:
+    df = get_dataframe(mysuite, experiment_name='stds', xkey='logstd_init')
 
-fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1,2)
 
-plot_ci(df,'grad_is','logstd_init', axes[0], 'o-')
-plot_ci(df,'grad_mc','logstd_init', axes[0], 's--')
-axes[0].set(xlabel='logstd_init', ylabel='mean of gradients')
-axes[0].legend(["IS", "MC"])
+    plot_ci(df,'grad_is','logstd_init', axes[0], 'o-')
+    plot_ci(df,'grad_mc','logstd_init', axes[0], 's--')
+    axes[0].set(xlabel='logstd_init', ylabel='mean of gradients')
+    axes[0].legend(["IS", "MC"])
 
-plot_ci(df,'var_grad_is','logstd_init', axes[1], 'o-')
-plot_ci(df,'var_grad_mc','logstd_init', axes[1], 's--')
-axes[1].set(xlabel='logstd_init', ylabel='var of mean of gradients')
-axes[1].legend(["IS", "MC"])
+    plot_ci(df,'var_grad_is','logstd_init', axes[1], 'o-')
+    plot_ci(df,'var_grad_mc','logstd_init', axes[1], 's--')
+    axes[1].set(xlabel='logstd_init', ylabel='var of mean of gradients')
+    axes[1].legend(["IS", "MC"])
 
-fig.tight_layout()
-plt.show()
+    fig.tight_layout()
+    plt.show()
 
-# Test 3
 # Varying horizon
 # -----------------------------------------------------
-df = get_dataframe(mysuite, experiment_name='horizons', xkey='horizon')
+if 'horizons' in experiments:
+    df = get_dataframe(mysuite, experiment_name='horizons', xkey='horizon')
 
-fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1,2)
 
-plot_ci(df,'grad_is','horizon', axes[0], 'o-')
-plot_ci(df,'grad_mc','horizon', axes[0], 's--')
-axes[0].set(xlabel='horizon', ylabel='mean of gradients')
-axes[0].legend(["IS", "MC"])
+    plot_ci(df,'grad_is','horizon', axes[0], 'o-')
+    plot_ci(df,'grad_mc','horizon', axes[0], 's--')
+    axes[0].set(xlabel='horizon', ylabel='mean of gradients')
+    axes[0].legend(["IS", "MC"])
 
-plot_ci(df,'var_grad_is','horizon', axes[1], 'o-')
-plot_ci(df,'var_grad_mc','horizon', axes[1], 's--')
-axes[1].set(xlabel='horizon', ylabel='var of mean of gradients')
-axes[1].legend(["IS", "MC"])
+    plot_ci(df,'var_grad_is','horizon', axes[1], 'o-')
+    plot_ci(df,'var_grad_mc','horizon', axes[1], 's--')
+    axes[1].set(xlabel='horizon', ylabel='var of mean of gradients')
+    axes[1].legend(["IS", "MC"])
 
-fig.tight_layout()
-plt.show()
+    fig.tight_layout()
+    plt.show()
 
-# Test 4
 # Varying state dimensions
 # -----------------------------------------------------
-df = get_dataframe(mysuite, experiment_name='dimensions', xkey='state_dim')
+if 'dimensions' in experiments:
+    df = get_dataframe(mysuite, experiment_name='dimensions', xkey='state_dim')
 
-fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1,2)
 
-plot_ci(df,'grad_is','state_dim', axes[0], 'o-')
-plot_ci(df,'grad_mc','state_dim', axes[0], 's--')
-axes[0].set(xlabel='state_dim', ylabel='mean of gradients')
-axes[0].legend(["IS", "MC"])
+    plot_ci(df,'grad_is','state_dim', axes[0], 'o-')
+    plot_ci(df,'grad_mc','state_dim', axes[0], 's--')
+    axes[0].set(xlabel='state_dim', ylabel='mean of gradients')
+    axes[0].legend(["IS", "MC"])
 
-plot_ci(df,'var_grad_is','state_dim', axes[1], 'o-')
-plot_ci(df,'var_grad_mc','state_dim', axes[1], 's--')
-axes[1].set(xlabel='state_dim', ylabel='var of mean of gradients')
-axes[1].legend(["IS", "MC"])
+    plot_ci(df,'var_grad_is','state_dim', axes[1], 'o-')
+    plot_ci(df,'var_grad_mc','state_dim', axes[1], 's--')
+    axes[1].set(xlabel='state_dim', ylabel='var of mean of gradients')
+    axes[1].legend(["IS", "MC"])
 
-fig.tight_layout()
-plt.show()
+    fig.tight_layout()
+    plt.show()
