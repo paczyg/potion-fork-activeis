@@ -59,18 +59,16 @@ class LQ(gym.Env):
         self.reset()
 
     def step(self, action, render=False):
-        u = np.ravel(action)
-        u = np.clip(u, -self.max_action, self.max_action)
-        noise = np.dot(self.sigma_noise, self.np_random.randn(self.ds))
-        xn = np.clip(np.dot(self.A, self.state.T) + np.dot(self.B, u) + noise, -self.max_pos, self.max_pos)
-        cost = np.dot(self.state,
-                      np.dot(self.Q, self.state)) + \
-            np.dot(u, np.dot(self.R, u))
+        u     = np.ravel(action)
+        u     = np.clip(u, -self.max_action, self.max_action)
+        noise = np.dot(self.sigma_noise, self.np_random.random(self.ds))
+        xn    = np.clip(np.dot(self.A, self.state.T) + np.dot(self.B, u) + noise, -self.max_pos, self.max_pos)
+        cost  = np.dot(self.state, np.dot(self.Q, self.state)) + np.dot(u, np.dot(self.R, u))
 
         self.state = xn.ravel()
         self.timestep += 1
         
-        return self.get_state(), -np.asscalar(cost), self.timestep >= self.horizon, False, {'danger':0} #done after fixed horizon (manual reset)
+        return self.get_state(), -cost, self.timestep >= self.horizon, False, {'danger':0} #done after fixed horizon (manual reset)
 
     def reset(self, *, seed = None, options = None):
         """
@@ -111,9 +109,9 @@ class LQ(gym.Env):
         if self.ds == 1:    
             screen_height = 400
         else:
-            world_height = math.ceil((self.max_pos[1] * 2) * 1.5)
+            world_height  = math.ceil((self.max_pos[1] * 2) * 1.5)
             screen_height = math.ceil(xscale * world_height)
-            yscale = screen_height / world_height
+            yscale        = screen_height / world_height
 
         if self.viewer is None:
             clearance = 0  # y-offset
