@@ -1,7 +1,10 @@
 import numpy as np
+import os
+import logging
 import torch
 import gym
 
+from potion.common.debug_logger import setup_debug_logger
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
 from potion.common.misc_utils import clip, seed_all_agent
@@ -70,6 +73,14 @@ class MySuite(PyExperimentSuite):
             else:
                 self.offline_policies = None
                 self.offline_batches  = None
+        
+        self.debug_logger = setup_debug_logger(
+            name        = str(rep),
+            log_file    = os.path.join(params['path'],params['name'],'') + str(rep) + '_DEBUG' + '.log',
+            level       = logging.DEBUG,
+            stream      ='stderr'
+        )
+
 
     def iterate(self, params, rep, n):
         # Offpolicy algorithm
@@ -87,6 +98,7 @@ class MySuite(PyExperimentSuite):
                 ce_batchsizes    = ce_batchsizes,
                 disc             = self.env.gamma,
                 defensive_batch  = params['defensive_batch'],
+                debug_logger     = self.debug_logger,
                 estimator        = params['estimator'],
                 seed             = params['seed']+n,
                 shallow          = isinstance(self.policy, ShallowGaussianPolicy),
@@ -97,7 +109,8 @@ class MySuite(PyExperimentSuite):
         elif 'onpolicy' in params['name']:
             log = reinforce_step(
                 self.env, self.policy, self.env.horizon,
-                batchsize      = params['batchsize'], 
+                batchsize      = params['batchsize'],
+                debug_logger   = self.debug_logger,
                 disc           = self.env.gamma,
                 stepper        = self.stepper,
                 estimator      = params['estimator'],

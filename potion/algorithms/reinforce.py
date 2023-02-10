@@ -8,6 +8,7 @@ REINFORCE family of algorithms (actor-only policy gradient)
 import torch
 import time
 import copy
+import logging
 from potion.simulation.trajectory_generators import generate_batch
 from potion.common.misc_utils import performance, avg_horizon, mean_sum_info
 from potion.estimation.gradients import gpomdp_estimator, reinforce_estimator, egpomdp_estimator
@@ -15,27 +16,29 @@ from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent
 from potion.meta.steppers import ConstantStepper, Adam
 
-def reinforce(env, policy, horizon, *,
-                    action_filter = None,
-                    batchsize = 100, 
-                    baseline = 'avg',
-                    disc = 0.99,
-                    entropy_coeff = 0.,
-                    estimate_var = False,
-                    estimator = 'gpomdp',
-                    info_key = 'danger',
-                    iterations = 1000,
-                    logger = Logger(name='gpomdp'),
-                    log_params = False,
-                    log_grad = False,
-                    parallel = False,
-                    render = False,
-                    save_params = 100000,
-                    seed = None,
-                    shallow = False,
-                    stepper = ConstantStepper(1e-2),
-                    test_batchsize = False,
-                    verbose = 1):
+def reinforce(
+        env, policy, horizon, *,
+        action_filter  = None,
+        batchsize      = 100, 
+        baseline       = 'avg',
+        disc           = 0.99,
+        entropy_coeff  = 0.,
+        estimate_var   = False,
+        estimator      = 'gpomdp',
+        debug_logger   = None,
+        info_key       = 'danger',
+        iterations     = 1000,
+        logger         = Logger(name='gpomdp'),
+        log_params     = False,
+        log_grad       = False,
+        parallel       = False,
+        render         = False,
+        save_params    = 100000,
+        seed           = None,
+        shallow        = False,
+        stepper        = ConstantStepper(1e-2),
+        test_batchsize = False,
+        verbose        = 1):
     """
     REINFORCE/G(PO)MDP algorithmn
         
@@ -45,6 +48,7 @@ def reinforce(env, policy, horizon, *,
     batchsize: number of trajectories used to estimate policy gradient
     iterations: number of policy updates
     disc: discount factor
+    debug_logger: a Python logger to debug and report the main steps of the algorithm
     stepper: step size criterion. A constant step size is used by default
     action_filter: function to apply to the agent's action before feeding it to 
         the environment, not considered in gradient estimation. By default,
@@ -74,7 +78,7 @@ def reinforce(env, policy, horizon, *,
     """
 
     # Saving algorithm information
-    # ================
+    # ============================
     # Store function parameters (do not move it from here!)
     algo_params = copy.deepcopy(locals())
     if logger is not None:
@@ -127,24 +131,28 @@ def reinforce(env, policy, horizon, *,
     return results
 
 
-def reinforce_step(env, policy, horizon, *,
-                    batchsize = 100, 
-                    disc = 0.99,
-                    stepper = ConstantStepper(1e-2),
-                    entropy_coeff = 0.,
-                    action_filter = None,
-                    estimator = 'gpomdp',
-                    baseline = 'avg',
-                    shallow = False,
-                    seed = None,
-                    estimate_var = False,
-                    test_batchsize = False,
-                    info_key = 'danger',
-                    log_params = False,
-                    log_grad = False,
-                    parallel = False,
-                    verbose = 1):
+def reinforce_step(
+        env, policy, horizon, *,
+        batchsize      = 100, 
+        disc           = 0.99,
+        stepper        = ConstantStepper(1e-2),
+        entropy_coeff  = 0.,
+        action_filter  = None,
+        estimator      = 'gpomdp',
+        baseline       = 'avg',
+        shallow        = False,
+        seed           = None,
+        estimate_var   = False,
+        test_batchsize = False,
+        info_key       = 'danger',
+        log_params     = False,
+        log_grad       = False,
+        debug_logger   = None,
+        parallel       = False,
+        verbose        = 1):
     
+    log_debug_message = lambda msg : debug_logger.debug(msg) if debug_logger else None
+
     start = time.time()
 
     # Seed agent
@@ -158,25 +166,30 @@ def reinforce_step(env, policy, horizon, *,
     params = policy.get_flat()
     if verbose > 1:
         print('Parameters:', params)
+    log_debug_message(f'Parameters:{params}')
     
     # Test the corresponding deterministic policy
     if test_batchsize:
+        log_debug_message('Testing the corresponding deterministic policy...')
         test_batch = generate_batch(env, policy, horizon, test_batchsize, 
                                     action_filter=action_filter,
                                     seed=seed,
                                     n_jobs=parallel,
                                     deterministic=True,
                                     key=info_key)
+        log_debug_message('done')
         log_row['TestPerf'] = performance(test_batch, disc)
         log_row['TestInfo'] = mean_sum_info(test_batch).item()
         log_row['UTestPerf'] = performance(test_batch, 1)
     
     # Collect trajectories
+    log_debug_message('Generating batch of trajectories...')
     batch = generate_batch(env, policy, horizon, batchsize, 
                             action_filter=action_filter, 
                             seed=seed, 
                             n_jobs=parallel,
                             key=info_key)
+    log_debug_message('done')
     log_row['Perf'] = performance(batch, disc)
     log_row['Info'] = mean_sum_info(batch).item()
     log_row['UPerf'] = performance(batch, disc=1.)
@@ -186,6 +199,7 @@ def reinforce_step(env, policy, horizon, *,
         
     # Estimate policy gradient
     result = 'samples' if estimate_var else 'mean'
+    log_debug_message('Estimating policy gradients...')
     if estimator == 'gpomdp' and entropy_coeff == 0:
         grad_samples = gpomdp_estimator(batch, disc, policy, 
                                         baselinekind=baseline, 
@@ -203,7 +217,8 @@ def reinforce_step(env, policy, horizon, *,
                                            result=result)
     else:
         raise ValueError('Invalid policy gradient estimator')
-    
+    log_debug_message('done')
+
     if estimate_var:
         grad = torch.mean(grad_samples, 0)
         centered = grad_samples - grad.unsqueeze(0)
@@ -216,6 +231,7 @@ def reinforce_step(env, policy, horizon, *,
                 
     if verbose > 1:
         print('Gradients: ', grad)
+    log_debug_message(f'Gradients: {grad}')
     log_row['GradNorm'] = torch.norm(grad).item()
     if estimate_var:
         log_row['SampleVar'] = grad_var
@@ -228,6 +244,7 @@ def reinforce_step(env, policy, horizon, *,
     log_row['BatchSize'] = batchsize
     
     # Update policy parameters
+    log_debug_message('Update parameters')
     if isinstance(stepper,Adam):
         new_params = params + stepsize
     else:

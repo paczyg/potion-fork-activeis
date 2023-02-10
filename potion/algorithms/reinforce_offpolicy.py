@@ -23,30 +23,32 @@ def make_list(x):
     else:
         return [x]
 
-def reinforce_offpolicy(env, policy, horizon, *,
-                 action_filter = None,
-                 batchsize = 100, 
-                 baseline = 'avg',
-                 biased_offpolicy = True,
-                 ce_batchsizes = None,
-                 ce_use_offline_data = True,
-                 disc = 0.99,
-                 defensive_batch = 0,
-                 entropy_coeff = 0.,
-                 estimate_var = False,
-                 estimator = 'gpomdp',
-                 info_key = 'danger',
-                 iterations = 50,
-                 log_grad = False,
-                 log_ce_params = False,
-                 log_params = False,
-                 logger = Logger(name='reinforce_ce'),
-                 parallel = False,
-                 seed = None,
-                 shallow = False,
-                 stepper = ConstantStepper(1e-2),
-                 test_batchsize = False,
-                 verbose = 1):
+def reinforce_offpolicy(
+        env, policy, horizon, *,
+        action_filter       = None,
+        batchsize           = 100, 
+        baseline            = 'avg',
+        biased_offpolicy    = True,
+        ce_batchsizes       = None,
+        ce_use_offline_data = True,
+        disc                = 0.99,
+        defensive_batch     = 0,
+        debug_logger        = None,
+        entropy_coeff       = 0.,
+        estimate_var        = False,
+        estimator           = 'gpomdp',
+        info_key            = 'danger',
+        iterations          = 50,
+        log_grad            = False,
+        log_ce_params       = False,
+        log_params          = False,
+        logger              = Logger(name='reinforce_ce'),
+        parallel            = False,
+        seed                = None,
+        shallow             = False,
+        stepper             = ConstantStepper(1e-2),
+        test_batchsize      = False,
+        verbose             = 1):
     """
     REINFORCE/G(PO)MDP algorithmn
         
@@ -63,6 +65,7 @@ def reinforce_offpolicy(env, policy, horizon, *,
         suffers from less variance
     ce_batchsizes: #TODO
     defensive_batch: number of samples from target policy to use for gradient estimation
+    debug_logger: a Python logger to debug and report the main steps of the algorithm
     biased_offpolicy: whether to use the samples employed in the cross-entropy optimization in the gradient estimation
     baseline: control variate to be used in the gradient estimator. Either
         'avg' (average reward, default), 'peters' (variance-minimizing) or
@@ -90,6 +93,8 @@ def reinforce_offpolicy(env, policy, horizon, *,
         List with set of batches that can be reused at the next iteration for CE optimization
     """
     
+    log_debug_message = lambda msg : debug_logger.debug(msg) if debug_logger else None
+
     # Saving algorithm information
     # ============================
     # Store function parameters (do not move it from here!)
@@ -103,11 +108,13 @@ def reinforce_offpolicy(env, policy, horizon, *,
     
     # Initial data for first offline CE estimation
     if ce_use_offline_data:
+        log_debug_message('Data collection for first offline CE estimation...')
         offline_policies = [policy]
         offline_batches = [generate_batch(env, policy, horizon, batchsize, 
                                         action_filter=action_filter,
                                         seed=seed,
                                         n_jobs=parallel)]
+        log_debug_message('done')
     else:
         offline_policies = None
         offline_batches = None
@@ -141,28 +148,32 @@ def reinforce_offpolicy(env, policy, horizon, *,
     return results
 
 
-def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_batches, *,
-                    action_filter = None,
-                    batchsize = 100, 
-                    baseline = 'avg',
-                    biased_offpolicy = True,
-                    ce_batchsizes = None,
-                    disc = 0.99,
-                    defensive_batch = 0,
-                    entropy_coeff = 0.,
-                    estimate_var = False,
-                    estimator = 'gpomdp',
-                    info_key = 'danger',
-                    log_grad = False,
-                    log_ce_params = False,
-                    log_params = False,
-                    parallel = False,
-                    seed = None,
-                    shallow = False,
-                    stepper = ConstantStepper(1e-2),
-                    test_batchsize = False,
-                    verbose = 1):
+def reinforce_offpolicy_step(
+        env, policy, horizon, offline_policies, offline_batches, *,
+        action_filter    = None,
+        batchsize        = 100, 
+        baseline         = 'avg',
+        biased_offpolicy = True,
+        ce_batchsizes    = None,
+        disc             = 0.99,
+        defensive_batch  = 0,
+        debug_logger     = None,
+        entropy_coeff    = 0.,
+        estimate_var     = False,
+        estimator        = 'gpomdp',
+        info_key         = 'danger',
+        log_grad         = False,
+        log_ce_params    = False,
+        log_params       = False,
+        parallel         = False,
+        seed             = None,
+        shallow          = False,
+        stepper          = ConstantStepper(1e-2),
+        test_batchsize   = False,
+        verbose          = 1):
     
+    log_debug_message = lambda msg : debug_logger.debug(msg) if debug_logger else None
+
     start = time.time()
 
     # Seed agent
@@ -173,18 +184,21 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     params = policy.get_flat()
     if verbose > 1:
         print('Parameters:', params)
+    log_debug_message(f'Parameters:{params}')
     
     # Preparing log
     log_row = {}
 
     # Testing the corresponding deterministic policy
     if test_batchsize:
+        log_debug_message('Testing the corresponding deterministic policy...')
         test_batch = generate_batch(env, policy, horizon, test_batchsize, 
                                     action_filter=action_filter,
                                     seed=seed,
                                     n_jobs=parallel,
                                     deterministic=True,
                                     key=info_key)
+        log_debug_message('done')
         log_row['TestPerf'] = performance(test_batch, disc)
         log_row['TestInfo'] = mean_sum_info(test_batch).item()
         log_row['UTestPerf'] = performance(test_batch, 1)
@@ -193,14 +207,18 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     # ==============================================================
     # CE optimization with offline batches
     if offline_policies:
+        log_debug_message('Optimizing behavioural policy...')
         try:
             opt_ce_policy = argmin_CE(env, policy, offline_policies, offline_batches, 
                                     estimator=estimator,
                                     baseline=baseline,
                                     optimize_mean=True,
                                     optimize_variance=True)
+            log_debug_message('done')
         except(RuntimeError):
             # If CE minimization is not possible, keep the atrget policy
+            if debug_logger is not None:
+                debug_logger.exception('An exception was thrown!')
             opt_ce_policy = policy
     else:
         opt_ce_policy = policy
@@ -211,20 +229,26 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     if ce_batchsizes is not None:
         for ce_batchsize in ce_batchsizes:
             ce_policies.append(opt_ce_policy)
+            log_debug_message('Generating new online batch for iterative CE optimization...')
             ce_batches.append(
                 generate_batch(env, opt_ce_policy, horizon, ce_batchsize, 
                                action_filter=action_filter, 
                                seed=seed, 
                                n_jobs=False)
             )
+            log_debug_message('done')
             try:
+                log_debug_message('Iteratively optimizing behavioural policy...')
                 opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
                                           estimator=estimator,
                                           baseline=baseline,
                                           optimize_mean=True,
                                           optimize_variance=True)
+                log_debug_message('done')
             except(RuntimeError):
                 # If CE minimization is not possible, keep the previous opt_ce_policy
+                if debug_logger is not None:
+                    debug_logger.exception('An exception was thrown!')
                 pass
 
     # Selection of batches and policies for gradient estimation
@@ -234,22 +258,26 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     
     # Sampling from optimized behavioural policy
     gradient_estimation_policies.append(opt_ce_policy)
+    log_debug_message('Generating batch of trajectories from behavioural policy...')
     gradient_estimation_batches.append(
         generate_batch(env, opt_ce_policy, horizon, batchsize,
                        action_filter=action_filter, 
                        seed=seed, 
                        n_jobs=False)
     )
+    log_debug_message('done')
     
     if defensive_batch > 0:
         # Sampling from target policy to use defensive trajecotires
         gradient_estimation_policies.append(policy)
+        log_debug_message('Generating defensive batch of trajectories ...')
         gradient_estimation_batches.append(
             generate_batch(env, policy, horizon, defensive_batch,
                            action_filter=action_filter, 
                            seed=seed, 
                            n_jobs=False)
         )
+        log_debug_message('done')
 
     if biased_offpolicy:
         # Reusing all the samples used for CE optimization
@@ -262,6 +290,7 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
     
     # Off-policy gradient stimation
     # =============================
+    log_debug_message('Estimating policy gradients...')
     if estimator == 'gpomdp' and entropy_coeff == 0:
         grad_samples = multioff_gpomdp_estimator(
             concatenate(gradient_estimation_batches), disc, policy, gradient_estimation_policies,
@@ -269,12 +298,15 @@ def reinforce_offpolicy_step(env, policy, horizon, offline_policies, offline_bat
         grad = torch.mean(grad_samples,0)
     else:
         raise NotImplementedError
+    log_debug_message('done')
 
     if verbose > 1:
         print('Gradients: ', grad)
+    log_debug_message(f'Gradients: {grad}')
     
     # Update of policy parameters
     # ===========================
+    log_debug_message('Update parameters')
     stepsize = stepper.next(grad)
     if not torch.is_tensor(stepsize):
         stepsize = torch.tensor(stepsize)
