@@ -60,7 +60,7 @@ args = parser.parse_args()
 # Prepare
 
 env = gym.make(args.env)
-env.seed(args.seed)
+#env.seed(args.seed)
 
 hidden_neurons = [int(x) for x in args.network.split(" ")] if args.network else []
 if args.activation=="tanh":
