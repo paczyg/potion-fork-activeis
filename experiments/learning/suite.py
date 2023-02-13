@@ -34,8 +34,8 @@ class MySuite(PyExperimentSuite):
             self.env.seed(self.seed)
         elif params['environment'] == 'swimmer':
             self.env = gym.make('Swimmer-v4')
-            self.env.horizon = self.env._max_episode_steps
-            self.env.gamma = 1
+            self.env.horizon = params['horizon']
+            self.env.gamma = params['gamma']
         else:
             raise NotImplementedError
         state_dim  = sum(self.env.observation_space.shape)
