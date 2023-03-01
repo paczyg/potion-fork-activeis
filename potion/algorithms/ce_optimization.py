@@ -60,7 +60,6 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
 
     # Parse parameters
     # ----------------
-    assert target_policy.n_actions==1, "Only scalar policies are accepted (for now...)"
     if not isinstance(mis_policies, list):
         mis_policies = [mis_policies]
     if not isinstance(mis_batches,list):
@@ -82,7 +81,7 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
     # Maximize CE
     # -----------
     opt_policy = copy.deepcopy(target_policy)
-    if is_shallow and divergence == 'kl':
+    if is_shallow and divergence == 'kl' and target_policy.n_actions==1:    # Only scalar policies are accepted (for now...) for the closed form solution
         coefficients_kl = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
                         * torch.linalg.norm(grad_samples,dim=1)    #[N]
         # Optimized code for shallow exponential family distribution policies
