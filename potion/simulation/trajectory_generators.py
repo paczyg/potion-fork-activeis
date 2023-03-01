@@ -80,7 +80,10 @@ def parallel_episode_generator(env, policy, horizon=float('inf'), action_filter=
         da = sum(env.action_space.shape)
         da = max(da, 1)    
     
-        env.seed(seed)
+        try:
+            env.seed(seed)
+        except:
+            pass
         seed_all_agent(seed)
         states = torch.zeros((horizon, ds),
                              dtype=torch.float)
