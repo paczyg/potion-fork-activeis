@@ -56,7 +56,7 @@ class MySuite(PyExperimentSuite):
                 state_dim,
                 action_dim,
                 hidden_neurons  = [32,32],
-                mu_init         = params["mu_init"]*torch.ones(state_dim*32+32*32+32*action_dim),
+                mu_init         = None,
                 logstd_init     = params["logstd_init"]*torch.ones(action_dim),
                 learn_std       = params["learn_std"]
             )
@@ -92,37 +92,45 @@ class MySuite(PyExperimentSuite):
 
             log, self.offline_policies, self.offline_batches = reinforce_offpolicy_step(
                 self.env, self.policy, self.env.horizon, self.offline_policies, self.offline_batches,
-                batchsize        = params['batchsize'], 
-                baseline         = params['baseline'],
+                batchsize = params['batchsize'], 
+                baseline = params['baseline'],
                 biased_offpolicy = params['biased_offpolicy'],
-                ce_batchsizes    = ce_batchsizes,
-                disc             = self.env.gamma,
-                defensive_batch  = params['defensive_batch'],
-                debug_logger     = self.debug_logger,
-                estimator        = params['estimator'],
-                seed             = params['seed']+n,
-                shallow          = isinstance(self.policy, ShallowGaussianPolicy),
-                stepper          = self.stepper,
-                test_batchsize   = 100)
+                ce_batchsizes = ce_batchsizes,
+                disc = self.env.gamma,
+                defensive_batch = params['defensive_batch'],
+                debug_logger = self.debug_logger,
+                estimator = params['estimator'],
+                ce_tol_grad=params['ce_tol_grad'],
+                ce_lr = params['ce_lr'],
+                ce_max_iter = params['ce_max_iter'],
+                ce_weight_decay = params['ce_weight_decay'],
+                ce_optimizer = params['ce_optimizer'],
+                seed = params['seed']+n,
+                shallow = isinstance(self.policy, ShallowGaussianPolicy),
+                stepper = self.stepper,
+                test_batchsize = params['batchsize'],
+                log_grad = False,
+                log_ce_params = False,
+                log_params = False)
         
         # Onpolicy algorithm
         elif 'onpolicy' in params['name']:
             log = reinforce_step(
                 self.env, self.policy, self.env.horizon,
-                batchsize      = params['batchsize'],
-                debug_logger   = self.debug_logger,
-                disc           = self.env.gamma,
-                stepper        = self.stepper,
-                estimator      = params['estimator'],
-                baseline       = params['baseline'],
-                shallow        = isinstance(self.policy, ShallowGaussianPolicy),
-                seed           = params['seed']+n,
-                test_batchsize = 100)
+                batchsize = params['batchsize'],
+                debug_logger = self.debug_logger,
+                disc = self.env.gamma,
+                stepper = self.stepper,
+                estimator = params['estimator'],
+                baseline = params['baseline'],
+                shallow = isinstance(self.policy, ShallowGaussianPolicy),
+                seed = params['seed']+n,
+                test_batchsize = params['batchsize'])
         return log
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='swimmer.cfg', numcores=1)
+    # mysuite = MySuite(config='swimmer/experiments.cfg', experiment='offpolicy_debug', numcores=1)
     
     # Command line
     mysuite = MySuite()

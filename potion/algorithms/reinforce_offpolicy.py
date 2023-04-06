@@ -162,6 +162,11 @@ def reinforce_offpolicy_step(
         estimate_var=False,
         estimator='gpomdp',
         grad_norm_threshold=10,
+        ce_tol_grad=100,
+        ce_lr=1e-5,
+        ce_max_iter=1e5,
+        ce_weight_decay=100,
+        ce_optimizer='adam',
         info_key='danger',
         log_grad= False,
         log_ce_params=False,
@@ -213,15 +218,20 @@ def reinforce_offpolicy_step(
             debug_logger.debug('Optimizing behavioural policy...')
         try:
             opt_ce_policy = argmin_CE(env, policy, offline_policies, offline_batches, 
-                                    estimator=estimator,
-                                    baseline=baseline,
-                                    optimize_mean=True,
-                                    optimize_variance=True,
-                                    grad_norm_threshold=grad_norm_threshold)
+                                      estimator=estimator,
+                                      baseline=baseline,
+                                      optimize_mean=True,
+                                      optimize_variance=True,
+                                      tol_grad=ce_tol_grad,
+                                      lr=ce_lr,
+                                      max_iter=ce_max_iter,
+                                      weight_decay=ce_weight_decay,
+                                      optimizer=ce_optimizer)
+            #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
             if debug_logger is not None:
                 debug_logger.debug('done')
         except(RuntimeError):
-            # If CE minimization is not possible, keep the atrget policy
+            # If CE minimization is not possible, keep the target policy
             if debug_logger is not None:
                 debug_logger.exception('An exception was thrown!')
             opt_ce_policy = policy
@@ -252,7 +262,12 @@ def reinforce_offpolicy_step(
                                           baseline=baseline,
                                           optimize_mean=True,
                                           optimize_variance=True,
-                                          grad_norm_threshold=grad_norm_threshold)
+                                          tol_grad=ce_tol_grad,
+                                          lr=ce_lr,
+                                          max_iter=ce_max_iter,
+                                          weight_decay=ce_weight_decay,
+                                          optimizer=ce_optimizer)
+
                 if debug_logger is not None:
                     debug_logger.debug('done')
             except(RuntimeError):

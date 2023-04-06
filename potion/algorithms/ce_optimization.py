@@ -50,13 +50,47 @@ def gradients(batch, discount, policy, estimator='reinforce', baseline='zero', s
 def get_alphas(mis_batches):
     return list(np.array([len(b) for b in mis_batches]) / sum([len(b) for b in mis_batches]))
 
+def has_converged(
+        it, max_iter,
+        loss=None,
+        loss_prev=None,
+        tol_loss=None,
+        tol_loss_rel=None,
+        grad=None,
+        tol_grad=None,
+        params=None,
+        params_prev=None,
+        tol_params=None):
+
+    converged = False
+
+    if all(v is not None for v in [loss, loss_prev, tol_loss]):
+        converged += abs(loss-loss_prev) < tol_loss
+
+    if all(v is not None for v in [loss, loss_prev, tol_loss_rel]):
+        converged += abs(loss-loss_prev)/abs(loss_prev) < tol_loss_rel
+
+    if all(v is not None for v in [params, params_prev, tol_params]):
+        converged += torch.norm(params-params_prev) < tol_params
+
+    if grad is not None:
+        converged += torch.norm(grad) < tol_grad
+        
+    converged += it > max_iter
+
+    return bool(converged)
+
 def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
-              baseline            = 'avg',
-              divergence          = 'kl',
-              estimator           = 'gpomdp',
-              grad_norm_threshold = 1,
-              optimize_mean       = True,
-              optimize_variance   = True):
+              baseline='avg',
+              divergence='kl',
+              estimator='gpomdp',
+              tol_grad=1e-1,
+              optimize_mean=True,
+              optimize_variance=True,
+              optimizer='adam',
+              lr=1e-5,
+              max_iter=1e5,
+              weight_decay=0):
 
     # Parse parameters
     # ----------------
@@ -116,7 +150,10 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
             opt_policy.logstd = torch.nn.Parameter(opt_policy.logstd)
         else:
             opt_policy.logstd.requires_grad_(False)
-        optimizer = torch.optim.SGD(opt_policy.parameters(), lr=1e-4)
+        if 'sgd' == optimizer:
+            optimizer = torch.optim.SGD(opt_policy.parameters(), lr=lr, weight_decay=weight_decay)
+        elif 'adam' == optimizer:
+            optimizer = torch.optim.Adam(opt_policy.parameters(), lr=lr, weight_decay=weight_decay)
         optimizer.zero_grad()
 
         # Construct loss function
@@ -135,13 +172,15 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
                                 * torch.linalg.norm(grad_samples,dim=1)**2      #[N]
 
         # Optimize
+        it = 0
         loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
-        while any([torch.norm(p.grad) > grad_norm_threshold for p in opt_policy.parameters()]):
+        while not has_converged(it, max_iter,
+                                grad=torch.tensor([torch.norm(p.grad).item() for p in opt_policy.parameters()]),
+                                tol_grad=tol_grad):
             optimizer.step()
-            # print('params',opt_policy.get_flat())
             optimizer.zero_grad()
             loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
-            # print('grad norm',[torch.norm(p.grad) for p in opt_policy.parameters()])
+            it += 1
 
         # TODO
         # ce_minibatch = 1
@@ -151,7 +190,6 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
         #     loss(coefficients[episode:episode+ce_minibatch], opt_policy.log_pdf(states[episode:episode+ce_minibatch], actions[episode:episode+ce_minibatch])).backward()
         #     optimizer.step()
         # opt_policy.get_flat()
-
 
     return opt_policy
 
@@ -289,38 +327,27 @@ def algo(env, target_policy, n_per_it, n_ce_iterations, *,
 
 def ce_optimization(env, target_policy, batchsizes, *,
                     action_filter=None,
-                    baseline='zero',
-                    divergence = 'kl',
-                    estimator='gpomdp',
-                    optimize_mean=True,
-                    optimize_variance=True,
                     reuse_samples = True,
-                    seed = None):
+                    seed = None,
+                    **kwargs):
     """
     Parameters
     ----------
     env: environment
-    target_policy : the target policy for gradient estimation
-    batchsizes : list
+    target_policy: the target policy for gradient estimation
+    batchsizes: list
         List with the number of samples to be used at every CE optimization epoch
-    estimator: either 'reinforce' or 'gpomdp' (default). The latter typically
-        suffers from less variance
-    baseline: control variate to be used in the gradient estimator. Either
-        'avg' (average reward, default), 'peters' (variance-minimizing) or
-        'zero' (no baseline)
     action_filter: function to apply to the agent's action before feeding it to 
         the environment, not considered in gradient estimation. By default,
         the action is clipped to satisfy evironmental boundaries
-    optimize_mean : boolean
-        Whether or not to optimize the mean of the behavioural policy
-    optimize_variance : boolean
-        Whether or not to optimize the variance of the behavioural policy
-    reuse_samples : boolean
+    reuse_samples: boolean
         Whether to reuse or not samples collected during the iterations of CE optimization
         for the current behavioural policy optimization.
         If False, only the last batch is used to estimate and optimize the CE loss for the current behavioural policy
-    seed : int
+    seed: int
         Random seed (None for random behavior)
+    kwargs: dictionary
+        Parameters of function argmin_CE()
 
     Returns
     -------
@@ -350,12 +377,7 @@ def ce_optimization(env, target_policy, batchsizes, *,
                            n_jobs=False)
         )
         try:
-            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:],
-                                    divergence = divergence,
-                                    estimator=estimator,
-                                    baseline=baseline,
-                                    optimize_mean=optimize_mean,
-                                    optimize_variance=optimize_variance)
+            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:], **kwargs)
         except(RuntimeError):
             # If CE minimization is not possible, keep the previous opt_ce_policy
             pass
