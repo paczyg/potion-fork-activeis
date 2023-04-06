@@ -5,7 +5,7 @@ import gym
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
 from potion.algorithms.ce_optimization import ce_optimization, get_alphas, var_mean
-from potion.actors.continuous_policies import ShallowGaussianPolicy
+from potion.actors.continuous_policies import ShallowGaussianPolicy, DeepGaussianPolicy
 from potion.common.misc_utils import concatenate
 from potion.simulation.trajectory_generators import generate_batch
 from potion.estimation.offpolicy_gradients import multioff_gpomdp_estimator
@@ -21,22 +21,41 @@ class MySuite(PyExperimentSuite):
         # -----------
         if params['env'] == 'lq':
             self.env = LQ(params['state_dim'], 1, max_pos=10, max_action = float('inf'), random=False)
+            self.env.horizon = params['horizon']
+            self.env.seed(self.seed)
         elif params['env'] == 'cartpole':
             self.env = gym.make('ContCartPole-v0')
             self.env.gamma = 1
-        self.env.horizon = params['horizon']
-        self.env.seed(self.seed)
+            self.env.horizon = params['horizon']
+            self.env.seed(self.seed)
+        elif params['env'] == 'swimmer':
+            self.env = gym.make('Swimmer-v4')
+            self.env.horizon = params['horizon']
+            self.env.gamma = params['gamma']
+        else:
+            raise NotImplementedError
+        state_dim  = sum(self.env.observation_space.shape)
+        action_dim = sum(self.env.action_space.shape)
 
         # Target Policy
         # -------------
-        state_dim = gym.spaces.utils.flatdim(self.env.observation_space)
-        self.target_policy = ShallowGaussianPolicy(
-            state_dim, # input size
-            1, # output size
-            mu_init = params['mu_init']*torch.ones(state_dim),
-            logstd_init = params['logstd_init'],
-            learn_std = False
-        )
+        if params['env'] == 'lq' or params['env'] == 'cartpole':
+            self.target_policy = ShallowGaussianPolicy(
+                state_dim,
+                action_dim,
+                mu_init = params['mu_init']*torch.ones(state_dim),
+                logstd_init = params['logstd_init']*torch.ones(action_dim),
+                learn_std = params["learn_std"]
+            )
+        elif params['env'] == 'swimmer':
+            self.target_policy = DeepGaussianPolicy(
+                state_dim,
+                action_dim,
+                hidden_neurons  = [32,32],
+                mu_init         = None,
+                logstd_init     = params["logstd_init"]*torch.ones(action_dim),
+                learn_std       = params["learn_std"]
+            )
 
     def iterate(self, params, rep, n):
         if isinstance(params['ce_batchsizes'], str):
@@ -50,7 +69,14 @@ class MySuite(PyExperimentSuite):
         ## Cross Entropy behavioural policy optimization, with trajectories collection
         opt_ce_policy, ce_policies, ce_batches = ce_optimization(
             self.env, self.target_policy, ce_batchsizes,
-            divergence = params['divergence'], estimator=params['estimator'], baseline=params['baseline'], seed=self.seed)
+            divergence=params['ce_divergence'],
+            estimator=params['estimator'],
+            baseline=params['baseline'],
+            lr=params['ce_lr'],
+            max_iter=params['ce_max_iter'],
+            tol_grad=params['ce_tol_grad'],
+            seed=self.seed
+        )
 
         ## Selection of batches and policies used during CE optimization
         defensive = True
@@ -94,7 +120,9 @@ class MySuite(PyExperimentSuite):
             on_grad_samples = gpomdp_estimator(
                 on_batch, self.env.gamma, self.target_policy, baselinekind=params["baseline"],
                 result='samples', shallow=isinstance(self.target_policy,ShallowGaussianPolicy))
-
+        else:
+            raise NotImplementedError
+        
         # Save results
         # ------------
         results = {}

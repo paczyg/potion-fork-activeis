@@ -20,8 +20,11 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
     xs = stats.index.values
     ys = stats['mean']
     ci_lb, ci_ub = st.norm.interval(0.68, loc=stats['mean'], scale=stats['std'])
-    ax.plot(xs,ys, *plt_args, **plt_kwargs)
+    lines = ax.plot(xs,ys, *plt_args, **plt_kwargs)
+    ax.set_xticks(xs)
     ax.fill_between(xs, ci_lb, ci_ub, alpha=.1)
+
+    return lines
 
 def get_dataframe(suite, experiment_name, xkey):
     assert experiment_name in suite.cfgparser.sections(), \
@@ -40,15 +43,44 @@ def get_dataframe(suite, experiment_name, xkey):
     
     return df
 
+def get_dataframe_swimmer(suite, experiment_name, xkey):
+    assert experiment_name in suite.cfgparser.sections(), \
+        "The experiment name is not present in the chosen configuration file"
+
+    experiment_path = os.path.join(suite.cfgparser.defaults()['path'], experiment_name)
+    exps = suite.get_exps(path=experiment_path)
+    params = suite.get_params(experiment_path)
+
+    df = pd.DataFrame()
+    for rep in range(params['repetitions']):
+        for exp in exps:
+            res_dict = suite.get_value(exp, rep, 'all', 'last')
+            
+            # Use cosine similarity to compare gradients
+            grad_cos_sim = np.dot(res_dict['grad_is'], res_dict['grad_mc'])/(np.linalg.norm(res_dict['grad_is'])*np.linalg.norm(res_dict['grad_mc']))
+            res_dict['grad_cos_sim'] = grad_cos_sim
+            del res_dict['grad_is'], res_dict['grad_mc']
+
+            _df = pd.DataFrame(res_dict, index=[rep])
+            _df[xkey] = suite.get_params(exp)[xkey]
+            df = pd.concat([df, _df],ignore_index = True)
+    
+    return df
+
 """
 ***************************************************************************************************
                                             Plot 
 ***************************************************************************************************
 """
-mysuite = PyExperimentSuite(config='experiments_lq.cfg')
+# mysuite = PyExperimentSuite(config='experiments_lq.cfg')
 # mysuite = PyExperimentSuite(config='experiments_lq_chi2.cfg')
+mysuite = PyExperimentSuite(config='experiments_cartpole.cfg')
 # mysuite = PyExperimentSuite(config='experiments_cartpole_chi2.cfg')
-experiments = ['means', 'stds', 'horizons', 'dimensions']
+# experiments = ['means', 'stds', 'horizons', 'dimensions']
+experiments = ['means', 'stds']
+
+# mysuite = PyExperimentSuite(config='experiments_swimmer.cfg')
+# experiments = ['batches', 'iterations']
 
 '''
 # Command line arguments
@@ -75,15 +107,15 @@ if 'means' in experiments:
 
     fig,axes = plt.subplots(1,2)
 
-    plot_ci(df,'grad_is','mu_init', axes[0], 'o-')
-    plot_ci(df,'grad_mc','mu_init', axes[0], 's--')
+    line_is = plot_ci(df,'grad_is','mu_init', axes[0], 'o-')
+    line_mc = plot_ci(df,'grad_mc','mu_init', axes[0], 's--')
     axes[0].set(xlabel='mu_init', ylabel='mean of gradients')
-    axes[0].legend(["IS", "MC"])
+    axes[0].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
-    plot_ci(df,'var_grad_is','mu_init', axes[1], 'o-')
-    plot_ci(df,'var_grad_mc','mu_init', axes[1], 's--')
+    line_is = plot_ci(df,'var_grad_is','mu_init', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','mu_init', axes[1], 's--')
     axes[1].set(xlabel='mu_init', ylabel='var of mean of gradients')
-    axes[1].legend(["IS", "MC"])
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
     fig.tight_layout()
     plt.show()
@@ -95,15 +127,15 @@ if 'stds' in experiments:
 
     fig,axes = plt.subplots(1,2)
 
-    plot_ci(df,'grad_is','logstd_init', axes[0], 'o-')
-    plot_ci(df,'grad_mc','logstd_init', axes[0], 's--')
+    line_is = plot_ci(df,'grad_is','logstd_init', axes[0], 'o-')
+    line_mc = plot_ci(df,'grad_mc','logstd_init', axes[0], 's--')
     axes[0].set(xlabel='logstd_init', ylabel='mean of gradients')
-    axes[0].legend(["IS", "MC"])
+    axes[0].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
-    plot_ci(df,'var_grad_is','logstd_init', axes[1], 'o-')
-    plot_ci(df,'var_grad_mc','logstd_init', axes[1], 's--')
+    line_is = plot_ci(df,'var_grad_is','logstd_init', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','logstd_init', axes[1], 's--')
     axes[1].set(xlabel='logstd_init', ylabel='var of mean of gradients')
-    axes[1].legend(["IS", "MC"])
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
     fig.tight_layout()
     plt.show()
@@ -115,15 +147,15 @@ if 'horizons' in experiments:
 
     fig,axes = plt.subplots(1,2)
 
-    plot_ci(df,'grad_is','horizon', axes[0], 'o-')
-    plot_ci(df,'grad_mc','horizon', axes[0], 's--')
+    line_is = plot_ci(df,'grad_is','horizon', axes[0], 'o-')
+    line_mc = plot_ci(df,'grad_mc','horizon', axes[0], 's--')
     axes[0].set(xlabel='horizon', ylabel='mean of gradients')
-    axes[0].legend(["IS", "MC"])
+    axes[0].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
-    plot_ci(df,'var_grad_is','horizon', axes[1], 'o-')
-    plot_ci(df,'var_grad_mc','horizon', axes[1], 's--')
+    line_is = plot_ci(df,'var_grad_is','horizon', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','horizon', axes[1], 's--')
     axes[1].set(xlabel='horizon', ylabel='var of mean of gradients')
-    axes[1].legend(["IS", "MC"])
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
     fig.tight_layout()
     plt.show()
@@ -135,15 +167,51 @@ if 'dimensions' in experiments:
 
     fig,axes = plt.subplots(1,2)
 
-    plot_ci(df,'grad_is','state_dim', axes[0], 'o-')
-    plot_ci(df,'grad_mc','state_dim', axes[0], 's--')
+    line_is = plot_ci(df,'grad_is','state_dim', axes[0], 'o-')
+    line_mc = plot_ci(df,'grad_mc','state_dim', axes[0], 's--')
     axes[0].set(xlabel='state_dim', ylabel='mean of gradients')
-    axes[0].legend(["IS", "MC"])
+    axes[0].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
-    plot_ci(df,'var_grad_is','state_dim', axes[1], 'o-')
-    plot_ci(df,'var_grad_mc','state_dim', axes[1], 's--')
+    line_is = plot_ci(df,'var_grad_is','state_dim', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','state_dim', axes[1], 's--')
     axes[1].set(xlabel='state_dim', ylabel='var of mean of gradients')
-    axes[1].legend(["IS", "MC"])
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
+
+    fig.tight_layout()
+    plt.show()
+
+# Swimmer: varying iterations
+# ---------------------------
+if 'iterations' in experiments:
+    df = get_dataframe_swimmer(mysuite, experiment_name='iterations', xkey='ce_max_iter')
+
+    fig,axes = plt.subplots(1,2)
+
+    plot_ci(df,'grad_cos_sim','ce_max_iter', axes[0], 'o-')
+    axes[0].set(xlabel='ce_max_iter', ylabel='grad cosine similarity')
+
+    line_is = plot_ci(df,'var_grad_is','ce_max_iter', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','ce_max_iter', axes[1], 's--')
+    axes[1].set(xlabel='ce_max_iter', ylabel='var of mean of gradients')
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
+
+    fig.tight_layout()
+    plt.show()
+
+# Swimmer: varying batches
+# ------------------------
+if 'batches' in experiments:
+    df = get_dataframe_swimmer(mysuite, experiment_name='batches', xkey='ce_batchsizes')
+
+    fig,axes = plt.subplots(1,2)
+
+    plot_ci(df,'grad_cos_sim','ce_batchsizes', axes[0], 'o-')
+    axes[0].set(xlabel='ce_batchsizes', ylabel='grad cosine similarity')
+
+    line_is = plot_ci(df,'var_grad_is','ce_batchsizes', axes[1], 'o-')
+    line_mc = plot_ci(df,'var_grad_mc','ce_batchsizes', axes[1], 's--')
+    axes[1].set(xlabel='ce_batchsizes', ylabel='var of mean of gradients')
+    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
 
     fig.tight_layout()
     plt.show()
