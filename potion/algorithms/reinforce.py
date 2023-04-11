@@ -151,8 +151,6 @@ def reinforce_step(
         parallel       = False,
         verbose        = 1):
     
-    log_debug_message = lambda msg : debug_logger.debug(msg) if debug_logger else None
-
     start = time.time()
 
     # Seed agent
@@ -166,30 +164,35 @@ def reinforce_step(
     params = policy.get_flat()
     if verbose > 1:
         print('Parameters:', params)
-    log_debug_message(f'Parameters:{params}')
+    if debug_logger is not None:
+        debug_logger.debug(f'Parameters:{params}')
     
     # Test the corresponding deterministic policy
     if test_batchsize:
-        log_debug_message('Testing the corresponding deterministic policy...')
+        if debug_logger is not None:
+            debug_logger.debug('Testing the corresponding deterministic policy...')
         test_batch = generate_batch(env, policy, horizon, test_batchsize, 
                                     action_filter=action_filter,
                                     seed=seed,
                                     n_jobs=parallel,
                                     deterministic=True,
                                     key=info_key)
-        log_debug_message('done')
+        if debug_logger is not None:
+            debug_logger.debug('done')
         log_row['TestPerf'] = performance(test_batch, disc)
         log_row['TestInfo'] = mean_sum_info(test_batch).item()
         log_row['UTestPerf'] = performance(test_batch, 1)
     
     # Collect trajectories
-    log_debug_message('Generating batch of trajectories...')
+    if debug_logger is not None:
+        debug_logger.debug('Generating batch of trajectories...')
     batch = generate_batch(env, policy, horizon, batchsize, 
                             action_filter=action_filter, 
                             seed=seed, 
                             n_jobs=parallel,
                             key=info_key)
-    log_debug_message('done')
+    if debug_logger is not None:
+        debug_logger.debug('done')
     log_row['Perf'] = performance(batch, disc)
     log_row['Info'] = mean_sum_info(batch).item()
     log_row['UPerf'] = performance(batch, disc=1.)
@@ -199,7 +202,8 @@ def reinforce_step(
         
     # Estimate policy gradient
     result = 'samples' if estimate_var else 'mean'
-    log_debug_message('Estimating policy gradients...')
+    if debug_logger is not None:
+        debug_logger.debug('Estimating policy gradients...')
     if estimator == 'gpomdp' and entropy_coeff == 0:
         grad_samples = gpomdp_estimator(batch, disc, policy, 
                                         baselinekind=baseline, 
@@ -217,7 +221,8 @@ def reinforce_step(
                                            result=result)
     else:
         raise ValueError('Invalid policy gradient estimator')
-    log_debug_message('done')
+    if debug_logger is not None:
+        debug_logger.debug('done')
 
     if estimate_var:
         grad = torch.mean(grad_samples, 0)
@@ -231,7 +236,8 @@ def reinforce_step(
                 
     if verbose > 1:
         print('Gradients: ', grad)
-    log_debug_message(f'Gradients: {grad}')
+    if debug_logger is not None:
+        debug_logger.debug(f'Gradients: {grad}')
     log_row['GradNorm'] = torch.norm(grad).item()
     if estimate_var:
         log_row['SampleVar'] = grad_var
@@ -244,7 +250,8 @@ def reinforce_step(
     log_row['BatchSize'] = batchsize
     
     # Update policy parameters
-    log_debug_message('Update parameters')
+    if debug_logger is not None:
+        debug_logger.debug('Update parameters')
     if isinstance(stepper,Adam):
         new_params = params + stepsize
     else:
