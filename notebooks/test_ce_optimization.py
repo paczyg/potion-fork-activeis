@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as st
 import torch
 
-from potion.algorithms.ce_optimization import algo, argmin_CE
+from potion.algorithms.ce_optimization import algo, optimize_behavioural
 
 # Environment
 # ===========
@@ -54,7 +54,7 @@ target_policy = policy
 mis_policies  = 1 * [policy]
 mis_batches   = 1 * [batch]
 
-q = argmin_CE(env, target_policy, mis_policies, mis_batches, optimize_mean=True, optimize_variance=True)
+q = optimize_behavioural(env, target_policy, mis_policies, mis_batches, optimize_mean=True, optimize_variance=True)
 print(f"theta* = {q.get_loc_params()}, logstd* = {q.logstd}")
 
 #%% Test Algorithm

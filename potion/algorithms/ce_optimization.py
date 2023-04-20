@@ -80,17 +80,18 @@ def has_converged(
 
     return bool(converged)
 
-def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
-              baseline='avg',
-              divergence='kl',
-              estimator='gpomdp',
-              tol_grad=1e-1,
-              optimize_mean=True,
-              optimize_variance=True,
-              optimizer='adam',
-              lr=1e-5,
-              max_iter=1e5,
-              weight_decay=0):
+def optimize_behavioural(
+        behav_policy, env, target_policy, mis_policies, mis_batches, *,
+        baseline='avg',
+        divergence='kl',
+        estimator='gpomdp',
+        tol_grad=1e-1,
+        optimize_mean=True,
+        optimize_variance=True,
+        optimizer='adam',
+        lr=1e-5,
+        max_iter=1e5,
+        weight_decay=0):
 
     # Parse parameters
     # ----------------
@@ -114,7 +115,6 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
 
     # Maximize CE
     # -----------
-    opt_policy = copy.deepcopy(target_policy)
     if is_shallow and divergence == 'kl' and target_policy.n_actions==1:    # Only scalar policies are accepted (for now...) for the closed form solution
         coefficients_kl = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
                         * torch.linalg.norm(grad_samples,dim=1)    #[N]
@@ -128,32 +128,32 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
                 ## den[FS,FS] = sum_n W[n] den[n,FS,FS]
                 den = torch.einsum('n,nij->ij',coefficients_kl,den)                             # [FS,FS]
                 opt_mean_params = num @ torch.inverse(den)                                      # [FS]
-                opt_policy.set_loc_params(opt_mean_params)
+                behav_policy.set_loc_params(opt_mean_params)
 
                 if any(opt_mean_params.isnan()):
                     raise ValueError
 
             if optimize_variance:
-                mu = opt_policy.mu(states)                                            # [N,H,A=1]
+                mu = behav_policy.mu(states)                                            # [N,H,A=1]
                 ## num[N] = sum_t (a[N,t] - mu[N,t])^2
                 num = ((actions - mu)**2).sum(1)                                      # [N,A=1]
                 ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
                 opt_var = (coefficients_kl@num) / (horizons@coefficients_kl)          # [1]
-                opt_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
+                behav_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
     else:
         # Gradient Ascent optimization for deep policies
 
         # Set up parameters for the optimization
         if not optimize_mean:
-            [p.requires_grad_(False) for p in opt_policy.mu.parameters()]
+            [p.requires_grad_(False) for p in behav_policy.mu.parameters()]
         if optimize_variance:
-            opt_policy.logstd = torch.nn.Parameter(opt_policy.logstd)
+            behav_policy.logstd = torch.nn.Parameter(behav_policy.logstd)
         else:
-            opt_policy.logstd.requires_grad_(False)
+            behav_policy.logstd.requires_grad_(False)
         if 'sgd' == optimizer:
-            optimizer = torch.optim.SGD(opt_policy.parameters(), lr=lr, weight_decay=weight_decay)
+            optimizer = torch.optim.SGD(behav_policy.parameters(), lr=lr, weight_decay=weight_decay)
         elif 'adam' == optimizer:
-            optimizer = torch.optim.Adam(opt_policy.parameters(), lr=lr, weight_decay=weight_decay)
+            optimizer = torch.optim.Adam(behav_policy.parameters(), lr=lr, weight_decay=weight_decay)
         optimizer.zero_grad()
 
         # Construct loss function
@@ -173,13 +173,13 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
 
         # Optimize
         it = 0
-        loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
+        loss(coefficients, behav_policy.log_pdf(states, actions)).backward()
         while not has_converged(it, max_iter,
-                                grad=torch.tensor([torch.norm(p.grad).item() for p in opt_policy.parameters()]),
+                                grad=torch.tensor([torch.norm(p.grad).item() for p in behav_policy.parameters()]),
                                 tol_grad=tol_grad):
             optimizer.step()
             optimizer.zero_grad()
-            loss(coefficients, opt_policy.log_pdf(states, actions)).backward()
+            loss(coefficients, behav_policy.log_pdf(states, actions)).backward()
             it += 1
 
         # TODO
@@ -190,8 +190,6 @@ def argmin_CE(env, target_policy, mis_policies, mis_batches, *,
         #     loss(coefficients[episode:episode+ce_minibatch], opt_policy.log_pdf(states[episode:episode+ce_minibatch], actions[episode:episode+ce_minibatch])).backward()
         #     optimizer.step()
         # opt_policy.get_flat()
-
-    return opt_policy
 
 def var_mean(X,iws=None):
     """
@@ -267,7 +265,7 @@ def algo(env, target_policy, n_per_it, n_ce_iterations, *,
                                    seed=seed, 
                                    n_jobs=False)]
     for _ in range(n_ce_iterations):
-        opt_policy = argmin_CE(env, target_policy, mis_policies[window:], mis_batches[window:], 
+        opt_policy = optimize_behavioural(env, target_policy, mis_policies[window:], mis_batches[window:], 
                                estimator=estimator, baseline=baseline, optimize_mean=optimize_mean, optimize_variance=optimize_variance)
         mis_policies.append(opt_policy)
         mis_batches.append(
@@ -377,7 +375,7 @@ def ce_optimization(env, target_policy, batchsizes, *,
                            n_jobs=False)
         )
         try:
-            opt_ce_policy = argmin_CE(env, target_policy, ce_policies[window:], ce_batches[window:], **kwargs)
+            opt_ce_policy = optimize_behavioural(env, target_policy, ce_policies[window:], ce_batches[window:], **kwargs)
         except(RuntimeError):
             # If CE minimization is not possible, keep the previous opt_ce_policy
             pass

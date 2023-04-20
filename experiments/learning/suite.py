@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import logging
+import copy
 import torch
 import gym
 
@@ -73,7 +74,16 @@ class MySuite(PyExperimentSuite):
             else:
                 self.offline_policies = None
                 self.offline_batches  = None
-        
+            # Prepare behavioural policies
+            if isinstance(params['ce_batchsizes'], str):
+                self.ce_batchsizes = eval(params['ce_batchsizes'])
+            else:
+                self.ce_batchsizes = params['ce_batchsizes']
+            if self.ce_batchsizes is None:
+                self.behavioural_policies = [copy.deepcopy(self.policy)]
+            else:
+                self.behavioural_policies = [copy.deepcopy(self.policy) for _ in range(len(self.ce_batchsizes)+1)]
+
         self.debug_logger = setup_debug_logger(
             name        = str(rep),
             log_file    = os.path.join(params['path'],params['name'],'') + str(rep) + '_DEBUG' + '.log',
@@ -85,17 +95,13 @@ class MySuite(PyExperimentSuite):
     def iterate(self, params, rep, n):
         # Offpolicy algorithm
         if 'offpolicy' in params['name']:
-            if isinstance(params['ce_batchsizes'], str):
-                ce_batchsizes = eval(params['ce_batchsizes'])
-            else:
-                ce_batchsizes = params['ce_batchsizes']
 
             log, self.offline_policies, self.offline_batches = reinforce_offpolicy_step(
-                self.env, self.policy, self.env.horizon, self.offline_policies, self.offline_batches,
+                self.env, self.policy, self.env.horizon, self.behavioural_policies, self.offline_policies, self.offline_batches,
                 batchsize = params['batchsize'], 
                 baseline = params['baseline'],
                 biased_offpolicy = params['biased_offpolicy'],
-                ce_batchsizes = ce_batchsizes,
+                ce_batchsizes = self.ce_batchsizes,
                 disc = self.env.gamma,
                 defensive_batch = params['defensive_batch'],
                 debug_logger = self.debug_logger,

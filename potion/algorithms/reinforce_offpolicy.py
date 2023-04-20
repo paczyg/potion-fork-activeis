@@ -15,7 +15,8 @@ from potion.estimation.offpolicy_gradients import multioff_gpomdp_estimator
 from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent, concatenate
 from potion.meta.steppers import ConstantStepper, Adam
-from potion.algorithms.ce_optimization import argmin_CE, get_alphas, var_mean
+from potion.algorithms.ce_optimization import optimize_behavioural, get_alphas, var_mean
+from potion.common.torch_utils import reset_all_weights
 
 def make_list(x):
     if type(x) is list:
@@ -124,6 +125,12 @@ def reinforce_offpolicy(
     del algo_params['logger']
     del algo_params['ce_use_offline_data']
 
+    # Prepare behavioural policies
+    if ce_batchsizes is None:
+        behavioural_policies = [copy.deepcopy(policy)]
+    else:
+        behavioural_policies = [copy.deepcopy(policy) for _ in range(len(ce_batchsizes)+1)]
+
     # Run
     # ===
     results = []
@@ -131,7 +138,11 @@ def reinforce_offpolicy(
 
         if verbose:
             print('\nIteration ', it)
-        log_row, offline_policies, offline_batches = reinforce_offpolicy_step(**algo_params, offline_policies=offline_policies, offline_batches=offline_batches)
+        log_row, offline_policies, offline_batches = reinforce_offpolicy_step(
+            **algo_params,
+            behavioural_policies=behavioural_policies,
+            offline_policies=offline_policies,
+            offline_batches=offline_batches)
         
         if logger is not None:
             if not logger.ready:
@@ -149,7 +160,7 @@ def reinforce_offpolicy(
 
 
 def reinforce_offpolicy_step(
-        env, policy, horizon, offline_policies, offline_batches, *,
+        env, policy, horizon, behavioural_policies, offline_policies, offline_batches, *,
         action_filter=None,
         batchsize=100, 
         baseline='avg',
@@ -212,21 +223,26 @@ def reinforce_offpolicy_step(
     
     # Cross-entropy optimization of behavioural policy (or policies)
     # ==============================================================
-    # CE optimization with offline batches
+    # Reinizializzation of behavioural policies
+    for behavioural_policy in behavioural_policies:
+        reset_all_weights(behavioural_policy)
+    
+    # (First) Behavioural policy optimization with offline batches
     if offline_policies:
         if debug_logger is not None:
             debug_logger.debug('Optimizing behavioural policy...')
         try:
-            opt_ce_policy = argmin_CE(env, policy, offline_policies, offline_batches, 
-                                      estimator=estimator,
-                                      baseline=baseline,
-                                      optimize_mean=True,
-                                      optimize_variance=True,
-                                      tol_grad=ce_tol_grad,
-                                      lr=ce_lr,
-                                      max_iter=ce_max_iter,
-                                      weight_decay=ce_weight_decay,
-                                      optimizer=ce_optimizer)
+            optimize_behavioural(
+                behavioural_policies[0], env, policy, offline_policies, offline_batches, 
+                estimator=estimator,
+                baseline=baseline,
+                optimize_mean=True,
+                optimize_variance=True,
+                tol_grad=ce_tol_grad,
+                lr=ce_lr,
+                max_iter=ce_max_iter,
+                weight_decay=ce_weight_decay,
+                optimizer=ce_optimizer)
             #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
             if debug_logger is not None:
                 debug_logger.debug('done')
@@ -234,20 +250,19 @@ def reinforce_offpolicy_step(
             # If CE minimization is not possible, keep the target policy
             if debug_logger is not None:
                 debug_logger.exception('An exception was thrown!')
-            opt_ce_policy = policy
+            behavioural_policies[0].set_from_flat(policy.get_flat())
     else:
-        opt_ce_policy = policy
+        behavioural_policies[0].set_from_flat(policy.get_flat())
     
-    # Further iterative CE optimization, sampling from the current behavioural policies
-    ce_policies   = []
-    ce_batches    = []
+    # Further iterative behavioural policies optimization, sampling from the last behavioural policy
+    behavioural_batches = []
     if ce_batchsizes is not None:
-        for ce_batchsize in ce_batchsizes:
-            ce_policies.append(opt_ce_policy)
+        for i,ce_batchsize in enumerate(ce_batchsizes):
             if debug_logger is not None:
                 debug_logger.debug('Generating new online batch for iterative CE optimization...')
-            ce_batches.append(
-                generate_batch(env, opt_ce_policy, horizon, ce_batchsize, 
+            # Generate samples from the last optimized behavioural policy
+            behavioural_batches.append(
+                generate_batch(env, behavioural_policies[i], horizon, ce_batchsize, 
                                action_filter=action_filter, 
                                seed=seed, 
                                n_jobs=False)
@@ -257,24 +272,25 @@ def reinforce_offpolicy_step(
             try:
                 if debug_logger is not None:
                     debug_logger.debug('Iteratively optimizing behavioural policy...')
-                opt_ce_policy = argmin_CE(env, policy, ce_policies, ce_batches, 
-                                          estimator=estimator,
-                                          baseline=baseline,
-                                          optimize_mean=True,
-                                          optimize_variance=True,
-                                          tol_grad=ce_tol_grad,
-                                          lr=ce_lr,
-                                          max_iter=ce_max_iter,
-                                          weight_decay=ce_weight_decay,
-                                          optimizer=ce_optimizer)
+                optimize_behavioural(
+                    behavioural_policies[i+1], env, policy, behavioural_policies[:i+1], behavioural_batches, 
+                    estimator=estimator,
+                    baseline=baseline,
+                    optimize_mean=True,
+                    optimize_variance=True,
+                    tol_grad=ce_tol_grad,
+                    lr=ce_lr,
+                    max_iter=ce_max_iter,
+                    weight_decay=ce_weight_decay,
+                    optimizer=ce_optimizer)
 
                 if debug_logger is not None:
                     debug_logger.debug('done')
             except(RuntimeError):
-                # If CE minimization is not possible, keep the previous opt_ce_policy
+                # If CE minimization is not possible, keep the previous behavioural policy
                 if debug_logger is not None:
                     debug_logger.exception('An exception was thrown!')
-                pass
+                behavioural_policies[i+1].set_from_flat(behavioural_policies[i])
 
     # Selection of batches and policies for gradient estimation
     # =========================================================
@@ -282,11 +298,11 @@ def reinforce_offpolicy_step(
     gradient_estimation_batches  = []
     
     # Sampling from optimized behavioural policy
-    gradient_estimation_policies.append(opt_ce_policy)
+    gradient_estimation_policies.append(behavioural_policies[-1])
     if debug_logger is not None:
         debug_logger.debug('Generating batch of trajectories from behavioural policy...')
     gradient_estimation_batches.append(
-        generate_batch(env, opt_ce_policy, horizon, batchsize,
+        generate_batch(env, behavioural_policies[-1], horizon, batchsize,
                        action_filter=action_filter, 
                        seed=seed, 
                        n_jobs=False)
@@ -309,13 +325,14 @@ def reinforce_offpolicy_step(
             debug_logger.debug('done')
 
     if biased_offpolicy:
-        # Reusing all the samples used for CE optimization
+        # Reusing all the samples used for behavioural policies optimization
         if offline_policies:
             gradient_estimation_policies += offline_policies
             gradient_estimation_batches  += offline_batches
-        if ce_policies:
-            gradient_estimation_policies += ce_policies
-            gradient_estimation_batches  += ce_batches
+        if behavioural_batches:
+            # The lastly optimized behavioural has been used already for generating trajectories 
+            gradient_estimation_policies += behavioural_policies[:-1]
+            gradient_estimation_batches  += behavioural_batches
     
     # Off-policy gradient stimation
     # =============================
@@ -389,10 +406,10 @@ def reinforce_offpolicy_step(
     
     if ce_batchsizes is not None:
         if log_ce_params:
-            for ce_it, pol in enumerate(ce_policies):
-                for i,el in enumerate(pol.get_loc_params().tolist()):
+            for ce_it, policy in enumerate(behavioural_policies):
+                for i,el in enumerate(policy.get_loc_params().tolist()):
                     log_row[f"ce_policy_loc{i}_{ce_it}"] = el
-                for i,el in enumerate(make_list(pol.get_scale_params().tolist())):
+                for i,el in enumerate(make_list(policy.get_scale_params().tolist())):
                     log_row[f"ce_policy_scale{i}_{ce_it}"] = el
 
     # Return values
