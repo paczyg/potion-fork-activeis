@@ -134,6 +134,16 @@ def reset_all_weights(model: torch.nn.Module, init: torch.nn.init = torch.nn.ini
     # Applies fn recursively to every submodule see: https://pytorch.org/docs/stable/generated/torch.nn.Module.html
     model.apply(fn=weight_reset)
 
+def copy_params(module_src, module_dest):
+    params_src = module_src.named_parameters()
+    params_dest = module_dest.named_parameters()
+
+    dict_dest = dict(params_dest)
+
+    for name, param in params_src:
+        if name in dict_dest:
+            dict_dest[name].detach().copy_(param.detach())
+
 
 """Testing"""
 if __name__ == '__main__':

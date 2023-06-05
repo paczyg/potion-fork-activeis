@@ -16,7 +16,7 @@ from potion.common.logger import Logger
 from potion.common.misc_utils import seed_all_agent, concatenate
 from potion.meta.steppers import ConstantStepper, Adam
 from potion.algorithms.ce_optimization import optimize_behavioural, get_alphas, var_mean
-from potion.common.torch_utils import reset_all_weights
+from potion.common.torch_utils import reset_all_weights, copy_params
 
 def make_list(x):
     if type(x) is list:
@@ -178,6 +178,10 @@ def reinforce_offpolicy_step(
         ce_max_iter=1e5,
         ce_weight_decay=100,
         ce_optimizer='adam',
+        ce_initialize_behavioural_policies='target',
+        ce_mis_rescale=False,
+        ce_mis_normalize=False,
+        ce_mis_clip=None,
         info_key='danger',
         log_grad= False,
         log_ce_params=False,
@@ -198,9 +202,9 @@ def reinforce_offpolicy_step(
     # Showing info
     params = policy.get_flat()
     if verbose > 1:
-        print('Parameters:', params)
+        print('Parameters (norm):', torch.norm(params))
     if debug_logger is not None:
-        debug_logger.debug(f'Parameters:{params}')
+        debug_logger.debug(f'Parameters (norm):{torch.norm(params)}')
     
     # Preparing log
     log_row = {}
@@ -224,8 +228,16 @@ def reinforce_offpolicy_step(
     # Cross-entropy optimization of behavioural policy (or policies)
     # ==============================================================
     # Reinizializzation of behavioural policies
-    for behavioural_policy in behavioural_policies:
-        reset_all_weights(behavioural_policy)
+    if ce_initialize_behavioural_policies == 'reset':
+        for behavioural_policy in behavioural_policies:
+            reset_all_weights(behavioural_policy)
+    elif ce_initialize_behavioural_policies == 'target':
+        for behavioural_policy in behavioural_policies:
+            copy_params(policy, behavioural_policy)
+    else:
+        ce_itialize_behavioural_policies_values = ['reset', 'target']
+        raise ValueError(f"Invalid ce_itialize_behavioural_policies type. Expected one of: {ce_itialize_behavioural_policies_values}")
+
     
     # (First) Behavioural policy optimization with offline batches
     if offline_policies:
@@ -241,6 +253,8 @@ def reinforce_offpolicy_step(
                 tol_grad=ce_tol_grad,
                 lr=ce_lr,
                 max_iter=ce_max_iter,
+                mis_normalize = ce_mis_normalize,
+                mis_clip = ce_mis_clip,
                 weight_decay=ce_weight_decay,
                 optimizer=ce_optimizer)
             #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
@@ -349,9 +363,9 @@ def reinforce_offpolicy_step(
         debug_logger.debug('done')
 
     if verbose > 1:
-        print('Gradients: ', grad)
+        print('Gradients (norm): ', torch.norm(grad))
     if debug_logger is not None:
-        debug_logger.debug(f'Gradients: {grad}')
+        debug_logger.debug(f'Gradients (norm): {torch.norm(grad)}')
     
     # Update of policy parameters
     # ===========================
@@ -416,11 +430,11 @@ def reinforce_offpolicy_step(
     # =============
     # If offline data for CE estimation is provided, return the new offline data for the next iteration
     if offline_policies:
-        next_offline_policies = gradient_estimation_policies
+        next_offline_policies = [copy.deepcopy(x) for x in gradient_estimation_policies]
         next_offline_bathces  = gradient_estimation_batches
     else:
-        next_offline_policies = None
-        next_offline_bathces  = None
+        next_offline_policies = []
+        next_offline_bathces  = []
     return log_row, next_offline_policies, next_offline_bathces
 
 """Testing"""

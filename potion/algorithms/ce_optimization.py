@@ -85,13 +85,16 @@ def optimize_behavioural(
         baseline='avg',
         divergence='kl',
         estimator='gpomdp',
-        tol_grad=1e-1,
+        lr=1e-5,
+        max_iter=1e5,
+        mis_rescale=False,
+        mis_normalize=False,
+        mis_clip=None,
         optimize_mean=True,
         optimize_variance=True,
         optimizer='adam',
-        lr=1e-5,
-        max_iter=1e5,
-        weight_decay=0):
+        weight_decay=0,
+        tol_grad=1e-1):
 
     # Parse parameters
     # ----------------
@@ -116,7 +119,7 @@ def optimize_behavioural(
     # Maximize CE
     # -----------
     if is_shallow and divergence == 'kl' and target_policy.n_actions==1:    # Only scalar policies are accepted (for now...) for the closed form solution
-        coefficients_kl = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+        coefficients_kl = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
                         * torch.linalg.norm(grad_samples,dim=1)    #[N]
         # Optimized code for shallow exponential family distribution policies
         with torch.no_grad():
@@ -134,7 +137,7 @@ def optimize_behavioural(
                     raise ValueError
 
             if optimize_variance:
-                mu = behav_policy.mu(states)                                            # [N,H,A=1]
+                mu = behav_policy.mu(states)                                          # [N,H,A=1]
                 ## num[N] = sum_t (a[N,t] - mu[N,t])^2
                 num = ((actions - mu)**2).sum(1)                                      # [N,A=1]
                 ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
@@ -161,15 +164,22 @@ def optimize_behavioural(
             # KL divergence to the theoretically optimal behavioural policy
             loss = lambda coefficients, logps: - torch.mean( coefficients * torch.sum(logps,1) )
             with torch.no_grad():
-                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
                                 * torch.linalg.norm(grad_samples,dim=1)    #[N]
         elif divergence == 'chi2':
             # Chi^2 divergence to the theoretically optimal behavioural policy
             loss = lambda coefficients, logps: torch.mean( coefficients / torch.exp(torch.sum(logps,1)) )
             with torch.no_grad():
-                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches)) \
+                coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
                                 * torch.exp( torch.sum(target_policy.log_pdf(states, actions), 1) ) \
                                 * torch.linalg.norm(grad_samples,dim=1)**2      #[N]
+
+        if baseline == 'avg':
+            baseline = torch.mean(coefficients) #[1]
+        else:
+            baseline = torch.zeros(1)           #[1]
+        baseline[baseline != baseline] = 0
+        coefficients = coefficients - baseline  #[N]
 
         # Optimize
         it = 0

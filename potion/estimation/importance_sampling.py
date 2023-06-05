@@ -39,10 +39,13 @@ def importance_weights(batch, policy, target_params, normalize=False, clip=None)
     
     return iws
 
-def multiple_importance_weights(batch, policy, proposal_policies, alphas):
+def multiple_importance_weights(batch, policy, proposal_policies, alphas, rescale=False, normalize=False, clip=None):
     """
     Compute Multiple Importance Sampling (MIS) weights, one for each trajectory in the batch, i.e:
-        policy(tau) / sum_j alpha_j*proposal_policies_j(tau),
+        policy(tau) / sum_j alpha_j*proposal_policies_j(tau)
+    Balance heuristic is employed for the determination of the weights functions.
+    See Owen, Art B. "Monte Carlo theory, methods and examples." (2013).
+    See Metelli, Alberto Maria, et al. "Importance sampling techniques for policy optimization." The Journal of Machine Learning Research 21.1 (2020): 5552-5626.
 
     Parameters
     ----------
@@ -50,8 +53,10 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas):
     policy: the target distribution
     proposal_policies: list with proposal policies distributions
     alphas: list of data fractions from each proposal distribution
+    rescale: wether to minmax rescale the importance weights
+    normalize: whether to normalize the imortance weights
+    clip: clamp importance weights to the specified value
     """
-    #TODO: add normalize and clip options
 
     # Check parameters
     if not isinstance(proposal_policies,list): 
@@ -86,9 +91,21 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas):
         sum_log_proposals = functools.reduce(smoothmax, log_proposals) #N
 
         # Importance weights
-        iws = torch.exp(sum_log_target - sum_log_proposals) #N
-    
-    if any(iws.isnan()):
+        log_iws = sum_log_target - sum_log_proposals
+
+        if rescale and log_iws.any():
+            log_iws = (log_iws - log_iws.min()) / (log_iws.max() - log_iws.min())
+
+        if normalize:
+            lof_iws = log_iws - torch.log(torch.exp(log_iws).sum())
+
+        iws = torch.exp(log_iws)
+        
+        if clip is not None:
+            iws = torch.clamp(iws, 0, clip)
+
+    # TODO: Importance sampling diagnostics?
+    if not all(iws.isfinite()):
         raise ValueError
 
     return iws
@@ -116,3 +133,6 @@ if __name__ == '__main__':
 
     print(importance_weights(batch, pol, pol2.get_flat()))
     print(multiple_importance_weights(batch, pol2, pol,1))
+
+    print(importance_weights(batch, pol, pol2.get_flat(), normalize = True))
+    print(multiple_importance_weights(batch, pol2, pol, 1, normalize = True))
