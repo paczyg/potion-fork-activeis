@@ -97,7 +97,7 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas, rescal
             log_iws = (log_iws - log_iws.min()) / (log_iws.max() - log_iws.min())
 
         if normalize:
-            lof_iws = log_iws - torch.log(torch.exp(log_iws).sum())
+            log_iws = log_iws - torch.log(torch.exp(log_iws).sum())
 
         iws = torch.exp(log_iws)
         

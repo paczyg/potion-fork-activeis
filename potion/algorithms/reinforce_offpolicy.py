@@ -259,14 +259,16 @@ def reinforce_offpolicy_step(
                 optimizer=ce_optimizer)
             #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
             if debug_logger is not None:
-                debug_logger.debug('done')
+                debug_logger.debug('done.')
+                debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[0].get_flat().norm()}')
         except(RuntimeError):
             # If CE minimization is not possible, keep the target policy
             if debug_logger is not None:
                 debug_logger.exception('An exception was thrown!')
-            behavioural_policies[0].set_from_flat(policy.get_flat())
+            copy_params(policy, behavioural_policies[0])
+
     else:
-        behavioural_policies[0].set_from_flat(policy.get_flat())
+        copy_params(policy, behavioural_policies[0])
     
     # Further iterative behavioural policies optimization, sampling from the last behavioural policy
     behavioural_batches = []
@@ -299,12 +301,13 @@ def reinforce_offpolicy_step(
                     optimizer=ce_optimizer)
 
                 if debug_logger is not None:
-                    debug_logger.debug('done')
+                    debug_logger.debug('done.')
+                    debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[i+1].get_flat().norm()}')
             except(RuntimeError):
                 # If CE minimization is not possible, keep the previous behavioural policy
                 if debug_logger is not None:
                     debug_logger.exception('An exception was thrown!')
-                behavioural_policies[i+1].set_from_flat(behavioural_policies[i])
+                copy_params(behavioural_policies[i], behavioural_policies[i+1])
 
     # Selection of batches and policies for gradient estimation
     # =========================================================
@@ -351,9 +354,9 @@ def reinforce_offpolicy_step(
     # Off-policy gradient stimation
     # =============================
     if debug_logger is not None:
-        debug_logger.debug('Estimating policy gradients...')
+        debug_logger.debug('Estimating off-policy gradients...')
     if estimator == 'gpomdp' and entropy_coeff == 0:
-        grad_samples = multioff_gpomdp_estimator(
+        grad_samples, iws = multioff_gpomdp_estimator(
             concatenate(gradient_estimation_batches), disc, policy, gradient_estimation_policies,
             get_alphas(gradient_estimation_batches), baselinekind=baseline, result='samples', is_shallow=shallow)
         grad = torch.mean(grad_samples,0)
@@ -364,8 +367,10 @@ def reinforce_offpolicy_step(
 
     if verbose > 1:
         print('Gradients (norm): ', torch.norm(grad))
+        print('Importance weights (norm): ', iws.norm())
     if debug_logger is not None:
         debug_logger.debug(f'Gradients (norm): {torch.norm(grad)}')
+        debug_logger.debug(f'Importance weights (norm): {iws.norm()}')
     
     # Update of policy parameters
     # ===========================
@@ -374,10 +379,7 @@ def reinforce_offpolicy_step(
     stepsize = stepper.next(grad)
     if not torch.is_tensor(stepsize):
         stepsize = torch.tensor(stepsize)
-    if isinstance(stepper,Adam):
-        new_params = params + stepsize
-    else:
-        new_params = params + stepsize * grad
+    new_params = params + stepsize * grad
     policy.set_from_flat(new_params)
     
     # Logging
