@@ -42,7 +42,9 @@ def reinforce_offpolicy(
         iterations          = 50,
         log_grad            = False,
         log_ce_params       = False,
+        log_ce_params_norms = False,
         log_params          = False,
+        log_params_norms    = False,
         logger              = Logger(name='reinforce_ce'),
         parallel            = False,
         seed                = None,
@@ -80,8 +82,10 @@ def reinforce_offpolicy(
         corresponding deterministic policy at each iteration. If 0 or False, no 
         test is performed
     log_params: whether to include policy parameters in the human-readable logs
+    log_params_norms: whether to include policy parameters norms in the human-readable logs
     log_grad: whether to include gradients in the human-readable logs
     log_ce_params: whether to save the parameters of the CE potimized behavioural policies
+    log_ce_params_norms: whether to save the parameters norms of the CE potimized behavioural policies
     parallel: number of parallel jobs for simulation. If 0 or False, 
         sequential simulation is performed.
     render: how often (every x iterations) to render the agent's behavior
@@ -185,6 +189,8 @@ def reinforce_offpolicy_step(
         info_key='danger',
         log_grad= False,
         log_ce_params=False,
+        log_ce_params_norms=False,
+        log_params_norms=False,
         log_params=False,
         parallel=False,
         seed=None,
@@ -412,7 +418,10 @@ def reinforce_offpolicy_step(
     log_row['Exploration']  = policy.exploration().item()
     log_row['Entropy']      = policy.entropy(0.).item()
     
-    if log_params:
+    if log_params_norms:
+        log_row['policy_loc_norm'] = policy.get_loc_params().norm()
+        log_row['policy_scale_norm'] = policy.get_scale_params().norm()
+    elif log_params:
         for i in range(policy.num_params()):
             log_row['param%d' % i] = params[i].item()
 
@@ -420,13 +429,16 @@ def reinforce_offpolicy_step(
         for i in range(policy.num_params()):
             log_row['grad%d' % i] = grad[i].item()
     
-    if ce_batchsizes is not None:
-        if log_ce_params:
-            for ce_it, policy in enumerate(behavioural_policies):
-                for i,el in enumerate(policy.get_loc_params().tolist()):
-                    log_row[f"ce_policy_loc{i}_{ce_it}"] = el
-                for i,el in enumerate(make_list(policy.get_scale_params().tolist())):
-                    log_row[f"ce_policy_scale{i}_{ce_it}"] = el
+    if log_ce_params_norms:
+        for p, policy in enumerate(behavioural_policies):
+            log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params().norm()
+            log_row[f"ce_policy_scale_{p}_norm"] = policy.get_scale_params().norm()
+    elif log_ce_params:
+        for p, policy in enumerate(behavioural_policies):
+            for i,el in enumerate(policy.get_loc_params().tolist()):
+                log_row[f"ce_policy_loc{i}_{p}"] = el
+            for i,el in enumerate(make_list(policy.get_scale_params().tolist())):
+                log_row[f"ce_policy_scale{i}_{p}"] = el
 
     # Return values
     # =============
