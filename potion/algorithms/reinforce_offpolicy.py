@@ -266,7 +266,7 @@ def reinforce_offpolicy_step(
             #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
             if debug_logger is not None:
                 debug_logger.debug('done.')
-                debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[0].get_flat().norm()}')
+                debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[0].get_flat().norm().item()}')
         except(RuntimeError):
             # If CE minimization is not possible, keep the target policy
             if debug_logger is not None:
@@ -308,7 +308,7 @@ def reinforce_offpolicy_step(
 
                 if debug_logger is not None:
                     debug_logger.debug('done.')
-                    debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[i+1].get_flat().norm()}')
+                    debug_logger.debug(f'Behavioural parameters (norm): {behavioural_policies[i+1].get_flat().norm().item()}')
             except(RuntimeError):
                 # If CE minimization is not possible, keep the previous behavioural policy
                 if debug_logger is not None:
@@ -373,10 +373,10 @@ def reinforce_offpolicy_step(
 
     if verbose > 1:
         print('Gradients (norm): ', torch.norm(grad))
-        print('Importance weights (norm): ', iws.norm())
+        print('Importance weights (norm): ', iws.norm().item())
     if debug_logger is not None:
-        debug_logger.debug(f'Gradients (norm): {torch.norm(grad)}')
-        debug_logger.debug(f'Importance weights (norm): {iws.norm()}')
+        debug_logger.debug(f'Gradients (norm): {torch.norm(grad).item()}')
+        debug_logger.debug(f'Importance weights (norm): {iws.norm().item()}')
     
     # Update of policy parameters
     # ===========================
@@ -419,8 +419,8 @@ def reinforce_offpolicy_step(
     log_row['Entropy']      = policy.entropy(0.).item()
     
     if log_params_norms:
-        log_row['policy_loc_norm'] = policy.get_loc_params().norm()
-        log_row['policy_scale_norm'] = policy.get_scale_params().norm()
+        log_row['policy_loc_norm'] = policy.get_loc_params().norm().item()
+        log_row['policy_scale_norm'] = policy.get_scale_params().norm().item()
     elif log_params:
         for i in range(policy.num_params()):
             log_row['param%d' % i] = params[i].item()
@@ -431,8 +431,8 @@ def reinforce_offpolicy_step(
     
     if log_ce_params_norms:
         for p, policy in enumerate(behavioural_policies):
-            log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params().norm()
-            log_row[f"ce_policy_scale_{p}_norm"] = policy.get_scale_params().norm()
+            log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params().norm().item()
+            log_row[f"ce_policy_scale_{p}_norm"] = policy.get_scale_params().norm().item()
     elif log_ce_params:
         for p, policy in enumerate(behavioural_policies):
             for i,el in enumerate(policy.get_loc_params().tolist()):
