@@ -186,6 +186,8 @@ def reinforce_offpolicy_step(
         ce_mis_rescale=False,
         ce_mis_normalize=False,
         ce_mis_clip=None,
+        ce_optimize_mean=True,
+        ce_optimize_variance=True,
         info_key='danger',
         log_grad= False,
         log_ce_params=False,
@@ -252,17 +254,17 @@ def reinforce_offpolicy_step(
         try:
             optimize_behavioural(
                 behavioural_policies[0], env, policy, offline_policies, offline_batches, 
-                estimator=estimator,
-                baseline=baseline,
-                optimize_mean=True,
-                optimize_variance=True,
-                tol_grad=ce_tol_grad,
-                lr=ce_lr,
-                max_iter=ce_max_iter,
+                estimator = estimator,
+                baseline = baseline,
+                optimize_mean = ce_optimize_mean,
+                optimize_variance = ce_optimize_variance,
+                tol_grad = ce_tol_grad,
+                lr = ce_lr,
+                max_iter = ce_max_iter,
                 mis_normalize = ce_mis_normalize,
                 mis_clip = ce_mis_clip,
-                weight_decay=ce_weight_decay,
-                optimizer=ce_optimizer)
+                weight_decay = ce_weight_decay,
+                optimizer = ce_optimizer)
             #NOTE: la policy ottimizzata può avere più parametri con requires_grad=true della policy target
             if debug_logger is not None:
                 debug_logger.debug('done.')
@@ -296,15 +298,15 @@ def reinforce_offpolicy_step(
                     debug_logger.debug('Iteratively optimizing behavioural policy...')
                 optimize_behavioural(
                     behavioural_policies[i+1], env, policy, behavioural_policies[:i+1], behavioural_batches, 
-                    estimator=estimator,
-                    baseline=baseline,
-                    optimize_mean=True,
-                    optimize_variance=True,
-                    tol_grad=ce_tol_grad,
-                    lr=ce_lr,
-                    max_iter=ce_max_iter,
-                    weight_decay=ce_weight_decay,
-                    optimizer=ce_optimizer)
+                    estimator = estimator,
+                    baseline = baseline,
+                    optimize_mean = ce_optimize_mean,
+                    optimize_variance = ce_optimize_variance,
+                    tol_grad = ce_tol_grad,
+                    lr = ce_lr,
+                    max_iter = ce_max_iter,
+                    weight_decay = ce_weight_decay,
+                    optimizer = ce_optimizer)
 
                 if debug_logger is not None:
                     debug_logger.debug('done.')
