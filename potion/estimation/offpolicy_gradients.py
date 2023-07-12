@@ -331,10 +331,10 @@ def _shallow_multioff_gpomdp_estimator(batch, disc, target_policy, behavioural_p
         grad_samples = torch.sum(tensormat(scores_cms * values, torch.exp(log_iws)), 1) # [N,D]
         if result == 'samples':
             return (grad_samples,   # [N,D]
-                   log_iws[:,1] )   # [N], importance weights of the full trajectory
+                   torch.exp(log_iws[:,1]) )   # [N], importance weights of the full trajectory
         else:
             return (torch.mean(grad_samples, 0),    # [D]
-                    log_iws[:,1] )                  # [N], importance weights of the full trajectory
+                    torch.exp(log_iws[:,1]) )       # [N], importance weights of the full trajectory
         
 def _deep_multioff_gpomdp_estimator(batch, disc, target_policy, behavioural_policies, alphas,*,
                                   baselinekind='peters', 
@@ -405,11 +405,11 @@ def _deep_multioff_gpomdp_estimator(batch, disc, target_policy, behavioural_poli
 
     if result == 'samples':
         return (grad_samples,   # [N,D]
-                log_iws[:,1] )  # [N], importance weights of the full trajectory
+                torch.exp(log_iws[:,1]) )  # [N], importance weights of the full trajectory
     
     else:
         return (torch.mean(grad_samples, 0),    # [D]
-                log_iws[:,1] )                  # [N], importance weights of the full trajectory
+                torch.exp(log_iws[:,1]) )       # [N], importance weights of the full trajectory
 
 """Testing"""
 if __name__ == '__main__':
