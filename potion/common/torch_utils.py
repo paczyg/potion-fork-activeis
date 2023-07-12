@@ -47,17 +47,27 @@ def set_from_flat(params, values):
             
 class FlatModule(nn.Module):
     """Module with flattened parameter management"""
-    def num_params(self):
+    def num_params(self, only_require_grad=True):
         """Number of parameters of the module"""
-        return num_params(self.parameters())
+        if only_require_grad:
+            return num_params((p for p in self.parameters() if p.requires_grad))
+        else:
+            return num_params((p for p in self.parameters()))
         
-    def get_flat(self):
+    def get_flat(self, only_require_grad=True):
         """Module parameters as flat array"""
-        return flatten(self.parameters())
+        if only_require_grad:
+            return flatten((p for p in self.parameters() if p.requires_grad))
+        else: 
+            return flatten((p for p in self.parameters()))
     
-    def set_from_flat(self, values):
+    def set_from_flat(self, values, only_require_grad=True):
         """Set module parameters from flat array"""
-        set_from_flat(self.parameters(), values)
+        if only_require_grad:
+            set_from_flat((p for p in self.parameters() if p.requires_grad), values)
+        else:
+            set_from_flat((p for p in self.parameters()), values)
+
         
     def save_flat(self, path):
         try:
@@ -76,7 +86,7 @@ class FlatModule(nn.Module):
 def flat_gradients(module, loss, coeff=None):
     module.zero_grad()
     loss.backward(coeff, retain_graph=True)
-    return torch.cat([p.grad.view(-1) for p in module.parameters()])
+    return torch.cat([p.grad.view(-1) for p in module.parameters() if p.requires_grad])
 
 def jacobian(module, loss, coeff=None):
     """Inefficient! Use jacobian-vector product whenever possible
@@ -135,6 +145,7 @@ def reset_all_weights(model: torch.nn.Module, init: torch.nn.init = torch.nn.ini
     model.apply(fn=weight_reset)
 
 def copy_params(module_src, module_dest):
+    # Copy all parameters, regardless requires _grad attribute
     params_src = module_src.named_parameters()
     params_dest = module_dest.named_parameters()
 

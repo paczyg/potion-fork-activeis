@@ -58,7 +58,7 @@ class GaussianHyperpolicy(Hyperpolicy):
         if self.learn_std:
             self.logstd = nn.Parameter(self.logstd_init)
         else:
-            self.logstd = autograd.Variable(self.logstd_init)
+            self.logstd = nn.Parameter(self.logstd_init, requires_grad = False)
         self.mu = nn.Parameter(self.mu_init)
             
         # Normal(0,1)

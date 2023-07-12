@@ -54,7 +54,7 @@ class ShallowGaussianPolicy(ContinuousPolicy):
         if learn_std:
             self.logstd = nn.Parameter(logstd_init)
         else:
-            self.logstd = autograd.Variable(logstd_init)
+            self.logstd = nn.Parameter(logstd_init, requires_grad = False)
         
         # Normal(0,1)
         self._pdf = Normal(torch.zeros_like(self.logstd.data), 
@@ -210,7 +210,7 @@ class DeepGaussianPolicy(ContinuousPolicy):
         if learn_std:
             self.logstd = nn.Parameter(logstd_init)
         else:
-            self.logstd = autograd.Variable(logstd_init)
+            self.logstd = nn.Parameter(logstd_init, requires_grad = False)
         
         # Normal(0,1)
         self._pdf = Normal(torch.zeros_like(self.logstd.data), 
@@ -244,20 +244,21 @@ class DeepGaussianPolicy(ContinuousPolicy):
             sigma = torch.exp(self.logstd.data)
             return a + self._pdf.sample() * sigma
         
-    def num_loc_params(self):
-        return self.mu.num_params()
+    def num_loc_params(self, only_require_grad=True):
+        return self.mu.num_params(only_require_grad)
     
     def num_scale_params(self):
         return self.n_actions
     
-    def get_loc_params(self):
-        return self.mu.get_flat()
+    def get_loc_params(self, only_require_grad=True):
+        return self.mu.get_flat(only_require_grad)
     
     def get_scale_params(self):
         return self.logstd.data
     
-    def set_loc_params(self, val):
-        self.mu.set_from_flat(val)
+    def set_loc_params(self, val, only_require_grad=True):
+        with torch.no_grad():
+            self.mu.set_from_flat(val, only_require_grad)
         
     def set_scale_params(self, val):
         with torch.no_grad():
@@ -350,7 +351,7 @@ class ShallowSquashedPolicy(ContinuousPolicy):
         if learn_std:
             self.logstd = nn.Parameter(logstd_init)
         else:
-            self.logstd = autograd.Variable(logstd_init)
+            self.logstd = nn.Parameter(logstd_init, requires_grad = False)
         
         # Normal(0,1)
         self._pdf = Normal(torch.zeros_like(self.logstd.data), 

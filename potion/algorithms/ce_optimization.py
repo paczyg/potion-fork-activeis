@@ -147,12 +147,16 @@ def optimize_behavioural(
         # Gradient Ascent optimization for deep policies
 
         # Set up parameters for the optimization
-        if not optimize_mean:
+        if optimize_mean:
+            [p.requires_grad_(True) for p in behav_policy.mu.parameters()]
+        else:
             [p.requires_grad_(False) for p in behav_policy.mu.parameters()]
         if optimize_variance:
-            behav_policy.logstd = torch.nn.Parameter(behav_policy.logstd)
+            behav_policy.logstd.requires_grad_(True)
         else:
             behav_policy.logstd.requires_grad_(False)
+        
+        # Set the optimizer
         if 'sgd' == optimizer:
             optimizer = torch.optim.SGD(behav_policy.parameters(), lr=lr, weight_decay=weight_decay)
         elif 'adam' == optimizer:
@@ -185,8 +189,8 @@ def optimize_behavioural(
         it = 0
         loss(coefficients, behav_policy.log_pdf(states, actions)).backward()
         while not has_converged(it, max_iter,
-                                grad=torch.tensor([torch.norm(p.grad).item() for p in behav_policy.parameters()]),
-                                tol_grad=tol_grad):
+                                grad = torch.tensor([torch.norm(p.grad).item() for p in behav_policy.parameters() if p.requires_grad]),
+                                tol_grad = tol_grad):
             optimizer.step()
             optimizer.zero_grad()
             loss(coefficients, behav_policy.log_pdf(states, actions)).backward()
