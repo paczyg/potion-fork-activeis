@@ -112,7 +112,6 @@ class MySuite(PyExperimentSuite):
                 ce_initialize_behavioural_policies = params['ce_initialize_behavioural_policies'],
                 ce_max_iter = params['ce_max_iter'],
                 ce_weight_decay = params['ce_weight_decay'],
-                ce_mis_rescale = params['ce_mis_rescale'],
                 ce_mis_normalize = params['ce_mis_normalize'],
                 ce_mis_clip = params['ce_mis_clip'],
                 ce_optimizer = params['ce_optimizer'],
@@ -146,7 +145,6 @@ class MySuite(PyExperimentSuite):
                 ce_initialize_behavioural_policies = params['ce_initialize_behavioural_policies'],
                 ce_max_iter = params['ce_max_iter'],
                 ce_weight_decay = params['ce_weight_decay'],
-                ce_mis_rescale = params['ce_mis_rescale'],
                 ce_mis_normalize = params['ce_mis_normalize'],
                 ce_mis_clip = params['ce_mis_clip'],
                 ce_optimizer = params['ce_optimizer'],
@@ -164,7 +162,7 @@ class MySuite(PyExperimentSuite):
 
 if __name__ == "__main__":
     # Interactive window
-    # mysuite = MySuite(config='swimmer/experiments.cfg', experiment='offpolicy_707_debug', numcores=1)
+    # mysuite = MySuite(config='swimmer/experiments_offpolicy.cfg', experiment='lr_0720', numcores=1)
     
     # Command line
     mysuite = MySuite()
