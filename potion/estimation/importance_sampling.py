@@ -31,7 +31,7 @@ def importance_weights(batch, policy, target_params, normalize=False, clip=None)
     iws = torch.exp(torch.sum((target - proposal) * mask, 1)) #N
     
     if clip is not None:
-        iws = torch.clamp(iws, 0, clip)
+        iws = torch.clamp(iws, 1-clip, 1+clip)
     
     #Self-normalization
     if normalize:
@@ -93,18 +93,14 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas, rescal
         # Importance weights
         log_iws = sum_log_target - sum_log_proposals
 
-        if rescale and log_iws.any():
-            log_iws = (log_iws - log_iws.min()) / (log_iws.max() - log_iws.min())
-
         if normalize:
             log_iws = log_iws - torch.log(torch.exp(log_iws).sum())
 
         iws = torch.exp(log_iws)
         
         if clip is not None:
-            iws = torch.clamp(iws, 0, clip)
+            iws = torch.clamp(iws, 1-clip, 1+clip)
 
-    # TODO: Importance sampling diagnostics?
     if not all(iws.isfinite()):
         raise ValueError
 
