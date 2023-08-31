@@ -1,0 +1,80 @@
+ 16%  [====                    ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyTruece_optimize_meanTruedefensive_batch50
+ 11%  [==                      ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch50
+ 25%  [======                  ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyFalsece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyTruece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  9%  [==                      ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch50
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyTruece_optimize_meanTruedefensive_batch50
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch50
+ 13%  [===                     ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  1%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyFalsece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch50
+ 16% [====                     ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+ 16% [====                     ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyFalsece_optimize_meanFalsedefensive_batch50
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch0
+  8% [==                       ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  2%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyFalsece_optimize_meanFalsedefensive_batch0
+ 22%  [=====                   ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch0
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+ 10%  [==                      ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyTruece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  3%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyFalsece_optimize_meanFalsedefensive_batch0
+ 11%  [==                      ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyTruece_optimize_meanFalsedefensive_batch0
+  1%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyFalsece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanTruedefensive_batch0
+  2%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyFalsece_optimize_meanTruedefensive_batch50
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyTruece_optimize_meanTruedefensive_batch0
+  3%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyFalsece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch50
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+ 25%  [======                  ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch0
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  0%  [                        ] swimmer/results/offpolicy/offline_target_0720/batchsize50biased_offpolicyTruece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch50
+ 14%  [===                     ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clipNonece_optimize_meanTruedefensive_batch0
+ 25%  [======                  ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch0
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanFalsedefensive_batch50
+ 12% [===                      ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize100biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize100biased_offpolicyFalsece_mis_clip0ce_optimize_meanFalsedefensive_batch0
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/horizon200batchsize50biased_offpolicyTruece_mis_clipNonece_optimize_meanFalsedefensive_batch0
+ 15%  [===                     ] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyTruece_mis_clip0ce_optimize_meanTruedefensive_batch50
+  0% [                         ] swimmer/results/offpolicy/offline_target_0720/batchsize100biased_offpolicyTruece_optimize_meanFalsedefensive_batch50
+100% [=========================] swimmer/results/offpolicy/offline_target_0720/horizon100batchsize50biased_offpolicyFalsece_mis_clipNonece_optimize_meanTruedefensive_batch0
