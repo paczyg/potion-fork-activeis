@@ -26,7 +26,7 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
 
     return lines
 
-def get_dataframe(suite, experiment_name, xkey):
+def get_dataframe(suite, experiment_name, xkey, cos_sim=False):
     assert experiment_name in suite.cfgparser.sections(), \
         "The experiment name is not present in the chosen configuration file"
 
@@ -37,31 +37,16 @@ def get_dataframe(suite, experiment_name, xkey):
     df = pd.DataFrame()
     for rep in range(params['repetitions']):
         for exp in exps:
-            _df = pd.DataFrame(suite.get_value(exp, rep, 'all', 'last'))
-            _df[xkey] = suite.get_params(exp)[xkey]
-            df = pd.concat([df, _df],ignore_index = True)
-    
-    return df
-
-def get_dataframe_swimmer(suite, experiment_name, xkey):
-    assert experiment_name in suite.cfgparser.sections(), \
-        "The experiment name is not present in the chosen configuration file"
-
-    experiment_path = os.path.join(suite.cfgparser.defaults()['path'], experiment_name)
-    exps = suite.get_exps(path=experiment_path)
-    params = suite.get_params(experiment_path)
-
-    df = pd.DataFrame()
-    for rep in range(params['repetitions']):
-        for exp in exps:
-            res_dict = suite.get_value(exp, rep, 'all', 'last')
             
-            # Use cosine similarity to compare gradients
-            grad_cos_sim = np.dot(res_dict['grad_is'], res_dict['grad_mc'])/(np.linalg.norm(res_dict['grad_is'])*np.linalg.norm(res_dict['grad_mc']))
-            res_dict['grad_cos_sim'] = grad_cos_sim
-            del res_dict['grad_is'], res_dict['grad_mc']
+            _dict = suite.get_value(exp, rep, 'all', 'last')
 
-            _df = pd.DataFrame(res_dict, index=[rep])
+            # Use cosine similarity to compare gradients
+            if cos_sim:
+                grad_cos_sim = np.dot(_dict['grad_is'], _dict['grad_mc'])/(np.linalg.norm(_dict['grad_is'])*np.linalg.norm(_dict['grad_mc']))
+                _dict['grad_cos_sim'] = grad_cos_sim
+                del _dict['grad_is'], _dict['grad_mc']
+
+            _df = pd.DataFrame(_dict, index=[rep])
             _df[xkey] = suite.get_params(exp)[xkey]
             df = pd.concat([df, _df],ignore_index = True)
     
@@ -72,12 +57,12 @@ def get_dataframe_swimmer(suite, experiment_name, xkey):
                                             Plot 
 ***************************************************************************************************
 """
-# mysuite = PyExperimentSuite(config='experiments_lq.cfg')
+mysuite = PyExperimentSuite(config='experiments_lq.cfg')
 # mysuite = PyExperimentSuite(config='experiments_lq_chi2.cfg')
-mysuite = PyExperimentSuite(config='experiments_cartpole.cfg')
+# mysuite = PyExperimentSuite(config='experiments_cartpole.cfg')
 # mysuite = PyExperimentSuite(config='experiments_cartpole_chi2.cfg')
-# experiments = ['means', 'stds', 'horizons', 'dimensions']
-experiments = ['means', 'stds']
+experiments = ['means', 'stds', 'horizons', 'dimensions']
+# experiments = ['means', 'stds']
 
 # mysuite = PyExperimentSuite(config='experiments_swimmer.cfg')
 # experiments = ['batches', 'iterations']
@@ -99,6 +84,10 @@ else:
     experiments = mysuite.cfgparser.sections()
 '''
 
+# plt.rcParams.update({
+#     "text.usetex": True,
+#     "font.family": "Helvetica"
+# })
 
 # Varying initial policy mean
 # -----------------------------------------------------
@@ -125,7 +114,7 @@ if 'means' in experiments:
 if 'stds' in experiments:
     df = get_dataframe(mysuite, experiment_name='stds', xkey='logstd_init')
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
     line_is = plot_ci(df,'grad_is','logstd_init', axes[0], 'o-')
     line_mc = plot_ci(df,'grad_mc','logstd_init', axes[0], 's--')
@@ -145,7 +134,7 @@ if 'stds' in experiments:
 if 'horizons' in experiments:
     df = get_dataframe(mysuite, experiment_name='horizons', xkey='horizon')
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
     line_is = plot_ci(df,'grad_is','horizon', axes[0], 'o-')
     line_mc = plot_ci(df,'grad_mc','horizon', axes[0], 's--')
@@ -163,14 +152,12 @@ if 'horizons' in experiments:
 # Varying state dimensions
 # -----------------------------------------------------
 if 'dimensions' in experiments:
-    df = get_dataframe(mysuite, experiment_name='dimensions', xkey='state_dim')
+    df = get_dataframe(mysuite, experiment_name='dimensions', xkey='state_dim', cos_sim = True)
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
-    line_is = plot_ci(df,'grad_is','state_dim', axes[0], 'o-')
-    line_mc = plot_ci(df,'grad_mc','state_dim', axes[0], 's--')
-    axes[0].set(xlabel='state_dim', ylabel='mean of gradients')
-    axes[0].legend([line_is[0], line_mc[0]], ["IS", "MC"])
+    line_is = plot_ci(df,'grad_cos_sim','state_dim', axes[0])
+    axes[0].set(xlabel='state_dim', ylabel='grad cosine similarity')
 
     line_is = plot_ci(df,'var_grad_is','state_dim', axes[1], 'o-')
     line_mc = plot_ci(df,'var_grad_mc','state_dim', axes[1], 's--')
@@ -183,11 +170,11 @@ if 'dimensions' in experiments:
 # Swimmer: varying iterations
 # ---------------------------
 if 'iterations' in experiments:
-    df = get_dataframe_swimmer(mysuite, experiment_name='iterations', xkey='ce_max_iter')
+    df = get_dataframe(mysuite, experiment_name='iterations', xkey='ce_max_iter', cos_sim = True)
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
-    plot_ci(df,'grad_cos_sim','ce_max_iter', axes[0], 'o-')
+    plot_ci(df,'grad_cos_sim','ce_max_iter', axes[0])
     axes[0].set(xlabel='ce_max_iter', ylabel='grad cosine similarity')
 
     line_is = plot_ci(df,'var_grad_is','ce_max_iter', axes[1], 'o-')
@@ -201,9 +188,9 @@ if 'iterations' in experiments:
 # Swimmer: varying batches
 # ------------------------
 if 'batches' in experiments:
-    df = get_dataframe_swimmer(mysuite, experiment_name='batches', xkey='ce_batchsizes')
+    df = get_dataframe(mysuite, experiment_name='batches', xkey='ce_batchsizes', cos_sim = True)
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
     plot_ci(df,'grad_cos_sim','ce_batchsizes', axes[0], 'o-')
     axes[0].set(xlabel='ce_batchsizes', ylabel='grad cosine similarity')
