@@ -377,7 +377,7 @@ def ce_optimization(env, target_policy, batchsizes, *,
 
     # Compute optimal importance sampling distributions
     # ------------------------------------------------
-    opt_ce_policy = target_policy
+    opt_ce_policy = copy.deepcopy(target_policy)
     ce_policies   = []
     ce_batches    = []
     for batchsize in batchsizes:
@@ -389,7 +389,7 @@ def ce_optimization(env, target_policy, batchsizes, *,
                            n_jobs=False)
         )
         try:
-            opt_ce_policy = optimize_behavioural(env, target_policy, ce_policies[window:], ce_batches[window:], **kwargs)
+            optimize_behavioural(opt_ce_policy, env, target_policy, ce_policies[window:], ce_batches[window:], **kwargs)
         except(RuntimeError):
             # If CE minimization is not possible, keep the previous opt_ce_policy
             pass
