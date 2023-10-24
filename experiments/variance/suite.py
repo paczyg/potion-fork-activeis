@@ -69,32 +69,32 @@ class MySuite(PyExperimentSuite):
         ## Cross Entropy behavioural policy optimization, with trajectories collection
         opt_ce_policy, ce_policies, ce_batches = ce_optimization(
             self.env, self.target_policy, ce_batchsizes,
-            divergence=params['ce_divergence'],
-            estimator=params['estimator'],
-            baseline=params['baseline'],
-            lr=params['ce_lr'],
-            max_iter=params['ce_max_iter'],
-            tol_grad=params['ce_tol_grad'],
-            seed=self.seed
+            divergence = params['ce_divergence'],
+            estimator = params['estimator'],
+            baseline = params['baseline'],
+            lr = params['ce_lr'],
+            max_iter = params['ce_max_iter'],
+            tol_grad = params['ce_tol_grad'],
+            seed = self.seed
         )
 
         ## Selection of batches and policies used during CE optimization
-        defensive = True
-        biased_offpolicy = True
+        defensive = params['defensive']
+        biased_offpolicy = params['biased_offpolicy']
 
         off_policies = []
         off_batches  = []
         if biased_offpolicy:
             # Resure CE samples for final offpolicy estimation
             if defensive:
-                off_policies = ce_policies
-                off_batches  = ce_batches
+                off_policies = off_policies + ce_policies
+                off_batches = off_batches + ce_batches
             else:
-                off_policies = ce_policies[1:]
-                off_batches  = ce_batches[1:]
+                off_policies = off_policies + ce_policies[1:]
+                off_batches = off_batches + ce_batches[1:]
         elif defensive:
-            off_policies = ce_policies[0]
-            off_batches  = ce_batches[0] 
+            off_policies.append(ce_policies[0])
+            off_batches.append(ce_batches[0])
         if params["batchsize"] > 0:
             off_policies.append(opt_ce_policy)
             off_batches.append(
@@ -103,9 +103,16 @@ class MySuite(PyExperimentSuite):
 
         ## Gradients estimation
         if params["estimator"] == 'gpomdp':
-            off_grad_samples = multioff_gpomdp_estimator(
-                concatenate(off_batches), self.env.gamma, self.target_policy, off_policies, get_alphas(off_batches),
-                baselinekind=params["baseline"], result='samples', is_shallow=isinstance(self.target_policy,ShallowGaussianPolicy))
+            off_grad_samples, _ = multioff_gpomdp_estimator(
+                concatenate(off_batches),
+                self.env.gamma,
+                self.target_policy,
+                off_policies,
+                get_alphas(off_batches),
+                baselinekind = params["baseline"],
+                result='samples',
+                is_shallow = isinstance(self.target_policy, ShallowGaussianPolicy)
+            )
         else:
             raise NotImplementedError
 
@@ -113,13 +120,24 @@ class MySuite(PyExperimentSuite):
         # ---------------------
         
         ## Trajectories collection
-        on_batch = generate_batch(self.env, self.target_policy, self.env.horizon, sum(ce_batchsizes) + params["batchsize"], seed=self.seed)
+        on_batch = generate_batch(
+            self.env,
+            self.target_policy,
+            self.env.horizon,
+            sum(ce_batchsizes) + params["batchsize"],
+            seed = self.seed
+        )
 
         ## Gradients estimation
         if params["estimator"] == 'gpomdp':
             on_grad_samples = gpomdp_estimator(
-                on_batch, self.env.gamma, self.target_policy, baselinekind=params["baseline"],
-                result='samples', shallow=isinstance(self.target_policy,ShallowGaussianPolicy))
+                on_batch,
+                self.env.gamma,
+                self.target_policy,
+                baselinekind = params["baseline"],
+                result = 'samples',
+                shallow = isinstance(self.target_policy,ShallowGaussianPolicy)
+            )
         else:
             raise NotImplementedError
         
