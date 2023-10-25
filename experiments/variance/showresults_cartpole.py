@@ -29,25 +29,27 @@ else:
     experiments = mysuite.cfgparser.sections()
 '''
 
-# plt.rcParams.update({
-#     "text.usetex": True,
-#     "font.family": "Helvetica"
-# })
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "Helvetica",
+    'text.latex.preamble': r"\usepackage{amsmath}"
+})
 
 # Varying initial policy mean
 # -----------------------------------------------------
 if 'means' in experiments:
     df = get_dataframe(mysuite, experiment_name='means', xkey='mu_init', cos_sim=True)
 
-    fig,axes = plt.subplots(1,2)
+    fig,axes = plt.subplots(1, 2, dpi = 200)
 
     line_is = plot_ci(df,'grad_cos_sim','mu_init', axes[0])
-    axes[0].set(xlabel='mu_init', ylabel='grad cosine similarity')
+    axes[0].set(xlabel = r'Policy mean $\boldsymbol{\theta}_\mu$', ylabel = 'Cosine similarity')
+    axes[0].set_ylim([-1.2, 1.2])
 
     line_is = plot_ci(df,'var_grad_is','mu_init', axes[1], 'o-')
     line_mc = plot_ci(df,'var_grad_mc','mu_init', axes[1], 's--')
-    axes[1].set(xlabel='mu_init', ylabel='var of mean of gradients')
-    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
+    axes[1].set(xlabel = r'Policy mean $\boldsymbol{\theta}_\mu$', ylabel = 'Variance of gradient estimates')
+    axes[1].legend([line_is[0], line_mc[0]], ["off-policy", "on-policy"])
 
     fig.tight_layout()
     plt.show()
@@ -60,12 +62,13 @@ if 'stds' in experiments:
     fig,axes = plt.subplots(1, 2, dpi = 200)
 
     line_is = plot_ci(df,'grad_cos_sim','logstd_init', axes[0])
-    axes[0].set(xlabel='logstd_init', ylabel='grad cosine similarity')
+    axes[0].set(xlabel = 'Policy log standard deviation', ylabel = 'Cosine similarity')
+    axes[0].set_ylim([-1.2, 1.2])
 
     line_is = plot_ci(df,'var_grad_is','logstd_init', axes[1], 'o-')
     line_mc = plot_ci(df,'var_grad_mc','logstd_init', axes[1], 's--')
-    axes[1].set(xlabel='logstd_init', ylabel='var of mean of gradients')
-    axes[1].legend([line_is[0], line_mc[0]], ["IS", "MC"])
+    axes[1].set(xlabel = 'Policy log standard deviation', ylabel = 'Variance of gradient estimates')
+    axes[1].legend([line_is[0], line_mc[0]], ["off-policy", "on-policy"])
 
     fig.tight_layout()
     plt.show()

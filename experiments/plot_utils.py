@@ -9,15 +9,23 @@ def plot_ci(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
     if ax is None:
         ax=plt.gca()
 
-    stats = df.groupby(xkey)[key].agg(['mean', 'std', 'count'])
-    xs = stats.index.values
-    ys = stats['mean']
-    ci_lb, ci_ub = st.norm.interval(0.68, loc=stats['mean'], scale=stats['std'])
+    df_grouped = df.groupby(xkey)[key]
+    xs = list(df_grouped.indices.keys())
+    ys = df_grouped.mean()
+    ci_lb, ci_ub = st.norm.interval(0.95, loc = ys, scale = df_grouped.agg(st.sem))
+    ci_lb[np.isnan(ci_lb)] = ys[np.isnan(ci_lb)]
+    ci_ub[np.isnan(ci_ub)] = ys[np.isnan(ci_ub)]
     lines = ax.plot(xs,ys, *plt_args, **plt_kwargs)
     ax.set_xticks(xs)
     ax.fill_between(xs, ci_lb, ci_ub, alpha=.1)
 
     return lines
+
+def plot_boxplot(df, key, xkey, ax=None, *plt_args, **plt_kwargs):
+    if ax is None:
+        ax=plt.gca()
+
+    df.boxplot(column = key, by = xkey, ax = ax)
 
 def get_dataframe(suite, experiment_name, xkey, cos_sim=False):
     assert experiment_name in suite.cfgparser.sections(), \
