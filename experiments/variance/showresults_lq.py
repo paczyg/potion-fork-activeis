@@ -92,7 +92,7 @@ if 'horizons' in experiments:
     fig,axes = plt.subplots(1, 2, dpi = 200)
 
     plot_ci(df,'grad_cos_sim','horizon', axes[0])
-    axes[0].set(xlabel = 'horizon', ylabel = 'Cosine similarity')
+    axes[0].set(xlabel = 'Horizon', ylabel = 'Cosine similarity')
     axes[0].set_ylim([-1.2, 1.2])
     # line_is = plot_ci(df,'grad_is','horizon', axes[0], 'o-')
     # line_mc = plot_ci(df,'grad_mc','horizon', axes[0], 's--')
