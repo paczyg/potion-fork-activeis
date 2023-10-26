@@ -75,9 +75,9 @@ def get_dataframes_over_repetitions(suite, exp, tags="all"):
 
 def get_ci(suite, exp, key):
     m = suite.get_histories_over_repetitions(exp, key, np.mean)
-    s = suite.get_histories_over_repetitions(exp, key, np.std)
+    s = suite.get_histories_over_repetitions(exp, key, st.sem)
     s[s==0] = "nan"
-    lb, ub = st.norm.interval(0.68, loc=m, scale=s)
+    lb, ub = st.norm.interval(0.95, loc = m, scale = s)
     return m, lb, ub
 
 def plot_iterations_key(dir, key='TestPerf'):
