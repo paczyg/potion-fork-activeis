@@ -17,6 +17,8 @@ from potion.common.misc_utils import seed_all_agent, concatenate
 from potion.meta.steppers import ConstantStepper, Adam
 from potion.algorithms.ce_optimization import optimize_behavioural, get_alphas, var_mean
 from potion.common.torch_utils import reset_all_weights, copy_params
+from potion.actors.continuous_policies import ShallowGaussianPolicy, DeepGaussianPolicy
+
 
 def make_list(x):
     if type(x) is list:
@@ -421,7 +423,10 @@ def reinforce_offpolicy_step(
     log_row['Entropy']      = policy.entropy(0.).item()
     
     if log_params_norms:
-        log_row['policy_loc_norm'] = policy.get_loc_params(only_require_grad = False).norm().item()
+        if isinstance(policy, DeepGaussianPolicy):
+            log_row['policy_loc_norm'] = policy.get_loc_params(only_require_grad = False).norm().item()
+        else:
+            log_row['policy_loc_norm'] = policy.get_loc_params().norm().item()
         log_row['policy_scale_norm'] = policy.get_scale_params().norm().item()
     elif log_params:
         for i in range(policy.num_params()):
@@ -433,11 +438,18 @@ def reinforce_offpolicy_step(
     
     if log_ce_params_norms:
         for p, policy in enumerate(behavioural_policies):
-            log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params(only_require_grad = False).norm().item()
+            if isinstance(policy, DeepGaussianPolicy):
+                log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params(only_require_grad = False).norm().item()
+            else:
+                log_row[f"ce_policy_loc_{p}_norm"] = policy.get_loc_params().norm().item()
             log_row[f"ce_policy_scale_{p}_norm"] = policy.get_scale_params().norm().item()
     elif log_ce_params:
         for p, policy in enumerate(behavioural_policies):
-            for i,el in enumerate(policy.get_loc_params(only_require_grad = False).tolist()):
+            if isinstance(policy, DeepGaussianPolicy):
+                loc_params_list = policy.get_loc_params(only_require_grad = False).tolist()
+            else:
+                loc_params_list = policy.get_loc_params().tolist()
+            for i,el in enumerate(loc_params_list):
                 log_row[f"ce_policy_loc{i}_{p}"] = el
             for i,el in enumerate(make_list(policy.get_scale_params().tolist())):
                 log_row[f"ce_policy_scale{i}_{p}"] = el

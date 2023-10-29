@@ -142,7 +142,7 @@ def optimize_behavioural(
                 num = ((actions - mu)**2).sum(1)                                      # [N,A=1]
                 ## sum_n W[n]*num[n] / sum_n horizon[n]*W[n]
                 opt_var = (coefficients_kl@num) / (horizons@coefficients_kl)          # [1]
-                behav_policy.set_scale_params(torch.log(torch.sqrt(opt_var)).item())
+                behav_policy.set_scale_params(torch.log(torch.sqrt(opt_var)))
     else:
         # Gradient Ascent optimization for deep policies
 
