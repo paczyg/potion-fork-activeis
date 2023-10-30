@@ -80,6 +80,44 @@ def get_ci(suite, exp, key):
     lb, ub = st.norm.interval(0.95, loc = m, scale = s)
     return m, lb, ub
 
+def find_exps(suite: PyExperimentSuite, query_dict: dict, dir: str, experiment: str=None) -> tuple(list[str], list[dict]):
+    """
+    Search all the experiments paths corresponding to a particular combination of parameters.
+    The search of the experiments is performed from the specified directory, and within an (optional) experiment set.
+
+    Args:
+        suite (PyExperimentSuite): The suite containing the experiments (and, in principle, their configuration file)
+        query_dict (dict): The dictionary containing the parameters configuration used to find the corresponding experiments
+        dir (str): The main directory containing all the experiments you want to search in
+        experiment (str, optional): The name of the experiment set, within the specified suite
+
+    Returns:
+        list[str]: The list with the experiments paths matching the queried parameters configurations
+        list[dict]: The list with the parameters dictionaries of the retrieved experiments
+    """
+    
+    if experiment is None:
+        exps = suite.get_exps(dir)
+    else:
+        # exps = suite.get_exps(os.path.join(dir, experiment))
+        exps = suite.get_exps(os.path.join(dir, experiment))
+
+    names = []
+    params = []
+    for dic in [suite.get_params(exp) for exp in exps]:
+        select = True
+        for k,v in query_dict.items():
+            select = False if dic[k] != v else select
+        if select:
+            names.append(os.path.join(dir, dic['name']))
+            params.append(dic)
+        
+    if len(names) == 1:
+        return names[0], params[0]
+    else:
+        return names, params
+
+
 def plot_iterations_key(dir, key='TestPerf'):
     """
     Plot iterations VS confidence intervals of specified key.
