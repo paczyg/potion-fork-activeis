@@ -79,27 +79,36 @@ class MySuite(PyExperimentSuite):
         )
 
         ## Selection of batches and policies used during CE optimization
-        defensive = params['defensive']
-        biased_offpolicy = params['biased_offpolicy']
-
         off_policies = []
         off_batches  = []
-        if biased_offpolicy:
+        
+        if params['biased_offpolicy']:
             # Resure CE samples for final offpolicy estimation
-            if defensive:
                 off_policies = off_policies + ce_policies
                 off_batches = off_batches + ce_batches
-            else:
-                off_policies = off_policies + ce_policies[1:]
-                off_batches = off_batches + ce_batches[1:]
-        elif defensive:
-            off_policies.append(ce_policies[0])
-            off_batches.append(ce_batches[0])
+        
         if params["batchsize"] > 0:
+            
+            if params['defensive_coeff'] > 0:
+                off_policies.append(self.target_policy)
+                off_batches.append(
+                    generate_batch(
+                        self.env,
+                        self.target_policy,
+                        self.env.horizon,
+                        round(params["batchsize"]*params['defensive_coeff']),
+                        seed = self.seed,
+                        n_jobs = False) )
+            
             off_policies.append(opt_ce_policy)
             off_batches.append(
-                generate_batch(self.env, opt_ce_policy, self.env.horizon, params["batchsize"], seed=self.seed, n_jobs=False)
-            )
+                generate_batch(
+                    self.env,
+                    opt_ce_policy,
+                    self.env.horizon,
+                    round(params["batchsize"]*(1-params['defensive_coeff'])),
+                    seed=self.seed,
+                    n_jobs=False) )
 
         ## Gradients estimation
         if params["estimator"] == 'gpomdp':
@@ -110,7 +119,7 @@ class MySuite(PyExperimentSuite):
                 off_policies,
                 get_alphas(off_batches),
                 baselinekind = params["baseline"],
-                result='samples',
+                result = 'samples',
                 is_shallow = isinstance(self.target_policy, ShallowGaussianPolicy)
             )
         else:
@@ -144,10 +153,10 @@ class MySuite(PyExperimentSuite):
         # Save results
         # ------------
         results = {}
-        results['grad_is']      = torch.mean(off_grad_samples,0).tolist()
-        results['var_grad_is']  = var_mean(off_grad_samples)[1]
-        results['grad_mc']      = torch.mean(on_grad_samples,0).tolist()
-        results['var_grad_mc']  = var_mean(on_grad_samples)[1]
+        results['grad_is'] = torch.mean(off_grad_samples,0).tolist()
+        results['var_grad_is'] = var_mean(off_grad_samples)[1]
+        results['grad_mc'] = torch.mean(on_grad_samples,0).tolist()
+        results['var_grad_mc'] = var_mean(on_grad_samples)[1]
         
         return results
 
