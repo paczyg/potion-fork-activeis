@@ -1,4 +1,3 @@
-import numpy as np
 import os
 import logging
 import copy
@@ -161,10 +160,5 @@ class MySuite(PyExperimentSuite):
         return log
 
 if __name__ == "__main__":
-    # Interactive window
-    # mysuite = MySuite(config='swimmer/experiments_offpolicy.cfg', experiment='lr_0720', numcores=1)
-    
-    # Command line
     mysuite = MySuite()
-    
     mysuite.start()

@@ -1,8 +1,6 @@
-import numpy as np
 import os
 import torch
 import gym
-import time
 
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
