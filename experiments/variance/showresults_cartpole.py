@@ -1,3 +1,4 @@
+# %%
 from matplotlib import pyplot as plt
 
 from expsuite import PyExperimentSuite

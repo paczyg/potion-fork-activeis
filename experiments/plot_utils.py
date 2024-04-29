@@ -80,7 +80,7 @@ def get_ci(suite, exp, key):
     lb, ub = st.norm.interval(0.95, loc = m, scale = s)
     return m, lb, ub
 
-def find_exps(suite: PyExperimentSuite, query_dict: dict, dir: str, experiment: str=None) -> tuple(list[str], list[dict]):
+def find_exps(suite: PyExperimentSuite, query_dict: dict, dir: str, experiment: str=None):# -> tuple(list[str], list[dict]):
     """
     Search all the experiments paths corresponding to a particular combination of parameters.
     The search of the experiments is performed from the specified directory, and within an (optional) experiment set.
