@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import gym
+import gymnasium as gym
 
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
@@ -138,6 +138,9 @@ class MySuite(PyExperimentSuite):
             seed = self.seed
         )
 
+        on_batch_returns = [sum(traj[2]) for traj in on_batch] #uj
+        on_batch_returns_discouted = [sum([r*self.env.gamma**t for t,r in enumerate(traj[2])]) for traj in on_batch] #itt a generált kódban csak t,_,r volt #uj
+
         ## Gradients estimation
         if params["estimator"] == 'gpomdp':
             on_grad_samples = gpomdp_estimator(
@@ -158,6 +161,10 @@ class MySuite(PyExperimentSuite):
         results['var_grad_is'] = var_mean(off_grad_samples)[1]
         results['grad_mc'] = torch.mean(on_grad_samples,0).tolist()
         results['var_grad_mc'] = var_mean(on_grad_samples)[1]
+
+        results['ret'] = np.mean(on_batch_returns) #uj
+        results['ret_disc'] = np.mean(on_batch_returns_discouted) #uj
+        
         
         return results
 

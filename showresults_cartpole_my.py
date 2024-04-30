@@ -11,7 +11,7 @@ from experiments.plot_utils import plot_ci, get_dataframe
 """
 mysuite = PyExperimentSuite(config='experiments_cartpole.cfg')
 # mysuite = PyExperimentSuite(config='experiments_cartpole_chi2.cfg')
-experiments = ['means', 'stds']
+experiments = ['means_20', 'stds_20']
 
 '''
 # Command line arguments
@@ -38,8 +38,8 @@ plt.rcParams.update({
 
 # Varying initial policy mean
 # -----------------------------------------------------
-if 'means' in experiments:
-    df = get_dataframe(mysuite, experiment_name='means', xkey='mu_init', cos_sim=True)
+if 'means_20' in experiments:
+    df = get_dataframe(mysuite, experiment_name='means_20', xkey='mu_init', cos_sim=True)
 
     fig,axes = plt.subplots(1, 2, dpi = 200)
 
@@ -57,8 +57,8 @@ if 'means' in experiments:
 
 # Varying initial policy variance
 # -----------------------------------------------------
-if 'stds' in experiments:
-    df = get_dataframe(mysuite, experiment_name='stds', xkey='logstd_init', cos_sim=True)
+if 'stds_20' in experiments:
+    df = get_dataframe(mysuite, experiment_name='stds_20', xkey='logstd_init', cos_sim=True)
 
     fig,axes = plt.subplots(1, 2, dpi = 200)
 
