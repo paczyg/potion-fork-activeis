@@ -10,6 +10,7 @@ from potion.common.misc_utils import concatenate
 from potion.simulation.trajectory_generators import generate_batch
 from potion.estimation.offpolicy_gradients import multioff_gpomdp_estimator
 from potion.estimation.gradients import gpomdp_estimator
+from potion.common.misc_utils import performance
 
 class MySuite(PyExperimentSuite):
 
@@ -133,13 +134,14 @@ class MySuite(PyExperimentSuite):
             self.env,
             self.target_policy,
             self.env.horizon,
-            sum(ce_batchsizes) + params["batchsize"],
+            #sum(ce_batchsizes) + params["batchsize"],
+            params["on_batchsize"],
             seed = self.seed
         )
 
         
-        on_batch_returns = [sum(traj[2]) for traj in on_batch] #uj
-        on_batch_returns_discouted = [sum([r*self.env.gamma**t for t,r in enumerate(traj[2])]) for traj in on_batch] #itt a generált kódban csak t,_,r volt #uj
+        #on_batch_returns = [sum(traj[2]) for traj in on_batch] #uj
+        #on_batch_returns_discouted = [sum([r*self.env.gamma**t for t,r in enumerate(traj[2])]) for traj in on_batch] #itt a generált kódban csak t,_,r volt #uj
 
 
         ## Gradients estimation
@@ -163,9 +165,13 @@ class MySuite(PyExperimentSuite):
         results['grad_mc'] = torch.mean(on_grad_samples,0).tolist()
         results['var_grad_mc'] = var_mean(on_grad_samples)[1]
 
-        results['ret'] = np.mean(on_batch_returns) #uj
-        results['ret_disc'] = np.mean(on_batch_returns_discouted) #uj
+        #results['ret'] = np.mean(on_batch_returns) #uj
+        #results['ret_disc'] = np.mean(on_batch_returns_discouted) #uj
         
+        results['ret_disc'] = performance(on_batch, self.env.gamma) #uj
+        results['ret'] = performance(on_batch, 1) #uj
+        results["batchsize"] = params["batchsize"] #uj
+
         return results
 
 if __name__ == "__main__":

@@ -1,10 +1,13 @@
 #%%
+import itertools
 import numpy as np
 import copy
 import pandas as pd
 import math
 import torch
 import torch.nn
+import sys
+
 
 from ..actors.continuous_policies import ShallowGaussianPolicy
 from potion.estimation.importance_sampling import multiple_importance_weights
@@ -49,7 +52,7 @@ def gradients(batch, discount, policy, estimator='reinforce', baseline='zero', s
     return grad_samples
 
 def get_alphas(mis_batches):
-    return list(np.array([len(b) for b in mis_batches]) / sum([len(b) for b in mis_batches]))
+    return list(np.array([len(b) if len(b)>0 else 10e-10 for b in mis_batches]) / sum([len(b) if len(b)>0 else 10e-10 for b in mis_batches]))
 
 def has_converged(
         it, max_iter,
@@ -106,7 +109,7 @@ def optimize_behavioural(
     if not isinstance(njt_batches,list):
         njt_batches = [njt_batches]
     assert len(mis_policies)==len(mis_batches), "Parameters mis_policies and mis_batches do not have same length"
-    assert len(mis_policies)==len(njt_batches), "Parameters mis_policies and njt_batches do not have same length"
+    #assert len(mis_policies)==len(njt_batches), "Parameters mis_policies and njt_batches do not have same length"
     is_shallow = isinstance(target_policy,ShallowGaussianPolicy)
 
     # Data for CE estimation
@@ -129,26 +132,146 @@ def optimize_behavioural(
     #    njt_mu_features = njt_states
 
     njtg_samples = gradients(njt_batch, env.gamma, target_policy, estimator=estimator, baseline=baseline, shallow=is_shallow)
-    mean_njt_grad = torch.mean(njtg_samples,1)
+    #mean_njt_grad = torch.mean(njtg_samples,1, keepdim = True)
+    mean_njt_grad = torch.mean(njtg_samples, 0)
 
-    pos_mask = torch.where(torch.dot(mean_njt_grad, grad_samples)>0, torch.ones_like(mean_njt_grad), torch.zeros_like(mean_njt_grad))
+    #print(mean_njt_grad.shape)
+    #print(grad_samples.shape)
 
 
-    batch_pos = batch[pos_mask]
-    batch_neg = batch[~pos_mask]
+    pos_mask = torch.where(torch.einsum("j, ij -> i", mean_njt_grad, grad_samples, )>0, torch.ones_like(grad_samples[:,0], dtype=torch.bool), torch.zeros_like(grad_samples[:,0], dtype=torch.bool)) #itt a torch.mean az újdonság, lehet az nem jó
 
-    mis_policies_pos = [mis_policies[i] for i in range(len(mis_policies)) if pos_mask[i]]
-    mis_policies_neg = [mis_policies[i] for i in range(len(mis_policies)) if not pos_mask[i]]
 
-    mis_batches_pos = [mis_batches[i] for i in range(len(mis_batches)) if pos_mask[i]]
-    mis_batches_neg = [mis_batches[i] for i in range(len(mis_batches)) if not pos_mask[i]]
+    #convert pos_mask to numpy
+    #pos_mask = pos_mask.numpy().astype(bool)
+    
+    #mask batch with pos_mask
+
+    
+
+
+
+    #print("pos_mask: ", pos_mask)
+
+    pos_mask = torch.squeeze(pos_mask).numpy().astype(bool)
+    #batch_pos = batch[pos_mask]
+    #batch_neg = batch[~pos_mask]
+
+    #mask batch, which is a tuple
+    
+    batch_pos = [batch[i] for i in range(len(batch)) if pos_mask[i]]
+    batch_neg = [batch[i] for i in range(len(batch)) if not pos_mask[i]]
+    
+
+    
+
+    
+
+    
+
+    #batch_pos = torch.masked_select(batch, pos_mask)
+    #batch_neg = torch.masked_select(batch, ~pos_mask)
+
+    """
+
+    if len(mis_policies) == 1 and isinstance(mis_policies[0], list):
+            mis_policies_pos = [mis_policies[0][i] for i in range(len(mis_policies[0])) if pos_mask[i]]
+            mis_policies_neg = [mis_policies[0][i] for i in range(len(mis_policies[0])) if not pos_mask[i]]
+        
+    else:
+        mis_policies_pos = [mis_policies[i] for i in range(len(mis_policies)) if pos_mask[i]]
+        mis_policies_neg = [mis_policies[i] for i in range(len(mis_policies)) if not pos_mask[i]]
+
+    """
+
+    
+    """
+    if isinstance(mis_policies[0], list):
+        mis_policies_squeezed = list(itertools.chain(*mis_policies))
+    else:
+        mis_policies_squeezed = mis_policies
+
+    if isinstance(mis_policies_squeezed[0], list):
+        mis_policies_squeezed = list(itertools.chain(*mis_policies_squeezed))
+
+    mis_policies_pos = [mis_policies[i] for i in range(len(mis_policies_squeezed)) if pos_mask[i]]
+    mis_policies_neg = [mis_policies[i] for i in range(len(mis_policies_squeezed)) if not pos_mask[i]]
+    
+
+    """
+
+    mis_policies_pos = mis_policies
+    mis_policies_neg = mis_policies
+
+
+    
+    #mis_batches_pos = [mis_batches[0][i] for i in range(len(mis_batches[0])) if pos_mask[i]]
+    #mis_batches_neg = [mis_batches[0][i] for i in range(len(mis_batches[0])) if not pos_mask[i]]
+
+
+    mis_batches_pos = [[mis_batches[i][j] for j in range(len(mis_batches[i])) if pos_mask[j]] for i in range(len(mis_batches))]
+    mis_batches_neg = [[mis_batches[i][j] for j in range(len(mis_batches[i])) if not pos_mask[j]] for i in range(len(mis_batches))]
+                       
+
+    #print("mis_batches_pos:", mis_batches_pos)
+    #print("mis_batches_neg:", mis_batches_neg)
+
+    
 
     num_pos = len(batch_pos)
     num_neg = len(batch_neg)
+    
 
+    #print("num_pos: ", num_pos)
+    #print("num_neg: ", num_neg)
 
     grad_samples_pos = grad_samples[pos_mask]
     grad_samples_neg = grad_samples[~pos_mask]
+
+    #print("mis_policies_pos len: ", len(mis_policies_pos))
+    #print("mis_policies_neg len: ", len(mis_policies_neg))
+
+    #print("mis_batches_pos len: ", len(mis_batches_pos))
+    #print("mis_batches_neg len: ", len(mis_batches_neg))
+
+    #print("mis_policies len: ", len(mis_policies))
+
+
+    #print("mis_batches shape: ", len(mis_batches))
+
+    #print(mis_policies)
+
+    """
+    if not isinstance(mis_batches_pos,list):
+        mis_batches_pos = [mis_batches_pos]
+
+    if not isinstance(mis_batches_neg,list):
+        mis_batches_neg = [mis_batches_neg]
+    """
+
+    """
+    mis_batches_pos = [mis_batches_pos]
+    mis_batches_neg = [mis_batches_neg]
+    """
+
+    #print("alphas pos shape: ", len(get_alphas(mis_batches_pos)))
+
+    #print("alphas neg shape: ", len(get_alphas(mis_batches_neg)))
+
+    #print("alphas shape: ", len(get_alphas(mis_batches)))
+
+
+    
+
+
+
+    if num_pos > 0:
+        miw_pos = multiple_importance_weights(batch_pos, target_policy, mis_policies_pos, get_alphas(mis_batches_pos), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) * torch.einsum("j, ij -> i", mean_njt_grad, grad_samples_pos)
+
+    if num_neg > 0:
+        miw_neg = - multiple_importance_weights(batch_neg, target_policy, mis_policies_neg, get_alphas(mis_batches_neg), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) * torch.einsum("j, ij -> i", mean_njt_grad, grad_samples_neg)
+    
+
 
     # Maximize CE
     # -----------
@@ -158,10 +281,32 @@ def optimize_behavioural(
                         * torch.linalg.norm(grad_samples,dim=1)    #[N]
 
         """
+
+        """
         coefficients_kl = multiple_importance_weights(batch_pos, target_policy, mis_policies_pos, get_alphas(mis_batches_pos), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
-                                * torch.dot(mean_njt_grad, grad_samples_pos)- \
+                                * torch.einsum("j, ij -> i", mean_njt_grad, grad_samples_pos)- \
                                 multiple_importance_weights(batch_neg, target_policy, mis_policies_neg, get_alphas(mis_batches_neg), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
-                                * torch.dot(mean_njt_grad, grad_samples_neg) 
+                                * torch.einsum("j, ij -> i", mean_njt_grad, grad_samples_neg)
+        
+        """
+        coefficients_kl = torch.zeros_like(grad_samples[:,0])
+        #merge miw_pos and miw_neg based on pos_mask
+
+        if num_pos > 0:
+            coefficients_kl[pos_mask] = miw_pos
+        if num_neg > 0:
+            coefficients_kl[~pos_mask] = miw_neg
+
+
+
+
+        #sima szorzás volt előtte az előzőben 
+        # N hosszúságúnak kéne lennie a coefficients_kl-nek
+
+        #print(coefficients_kl)
+        
+
+        #itt a torch.dot-nál a torch.mean az újdonság, lehet az nem jó
         # Optimized code for shallow exponential family distribution policies
         with torch.no_grad():
             if optimize_mean:
@@ -213,11 +358,19 @@ def optimize_behavioural(
                 coefficients = multiple_importance_weights(batch, target_policy, mis_policies, get_alphas(mis_batches), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
                                 * torch.linalg.norm(grad_samples,dim=1)    #[N]
                 """
+                """
                 coefficients = multiple_importance_weights(batch_pos, target_policy, mis_policies_pos, get_alphas(mis_batches_pos), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
-                                * torch.dot(mean_njt_grad, grad_samples_pos)- \
+                                * torch.einsum("j, ij -> i",mean_njt_grad, grad_samples_pos)- \
                                 multiple_importance_weights(batch_neg, target_policy, mis_policies_neg, get_alphas(mis_batches_neg), rescale = mis_rescale, normalize = mis_normalize, clip = mis_clip) \
-                                * torch.dot(mean_njt_grad, grad_samples_neg)
+                                * torch.einsum("j, ij -> i",mean_njt_grad, grad_samples_neg)
+                """
 
+                coefficients = torch.zeros_like(grad_samples[:,0])
+                #merge miw_pos and miw_neg based on pos_mask
+                if num_pos > 0:
+                    coefficients[pos_mask] = miw_pos
+                if num_neg > 0:
+                    coefficients[~pos_mask] = miw_neg
 
                 
         elif divergence == 'chi2':
@@ -387,7 +540,7 @@ def algo(env, target_policy, n_per_it, n_ce_iterations, *,
 
     return results, stats, algo_info
 
-def ce_optimization_g(env, target_policy, batchsizes, *,
+def ce_optimization_g(env, target_policy, batchsizes, njt_batchsizes, *,
                     action_filter=None,
                     reuse_samples = True,
                     seed = None,
@@ -439,11 +592,12 @@ def ce_optimization_g(env, target_policy, batchsizes, *,
                            seed=seed, 
                            n_jobs=False)
         )
+    for batchsize in njt_batchsizes:
         njt_batches.append(
             generate_batch(env, target_policy, env.horizon, batchsize, 
-                           action_filter=action_filter, 
-                           seed=seed, 
-                           n_jobs=False)
+                            action_filter=action_filter, 
+                            seed=seed, 
+                            n_jobs=False)
         )
         try:
             optimize_behavioural(opt_ce_policy, env, target_policy, ce_policies[window:], ce_batches[window:], njt_batches[window:], **kwargs)

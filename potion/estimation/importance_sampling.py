@@ -8,6 +8,7 @@ Created on Fri Mar 22 14:55:39 2019
 import math
 import functools
 import torch
+import sys
 
 from potion.common.misc_utils import unpack
 
@@ -87,7 +88,10 @@ def multiple_importance_weights(batch, policy, proposal_policies, alphas, rescal
         # Proposal probability
         log_proposals = [None]*len(proposal_policies)
         for i,p in enumerate(proposal_policies):
-            log_proposals[i] = math.log(alphas[i]) + torch.sum(p.log_pdf(states, actions)*mask, 1)
+            if alphas[i]>0:
+                log_proposals[i] = math.log(alphas[i]) + torch.sum(p.log_pdf(states, actions)*mask, 1)
+            else:
+                log_proposals[i] = math.log(sys.float_info.min) + torch.sum(p.log_pdf(states, actions)*mask, 1)
         sum_log_proposals = functools.reduce(smoothmax, log_proposals) #N
 
         # Importance weights

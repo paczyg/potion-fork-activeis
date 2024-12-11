@@ -4,13 +4,16 @@ import gymnasium as gym
 
 from expsuite import PyExperimentSuite
 from potion.envs.lq import LQ
-from potion.algorithms.ce_optimization import get_alphas, var_mean
+from potion.algorithms.ce_optimization import get_alphas, var_mean, ce_optimization
 from potion.algorithms.ce_optimization_g import ce_optimization_g
 from potion.actors.continuous_policies import ShallowGaussianPolicy, DeepGaussianPolicy
 from potion.common.misc_utils import concatenate
 from potion.simulation.trajectory_generators import generate_batch
 from potion.estimation.offpolicy_gradients import multioff_gpomdp_estimator
 from potion.estimation.gradients import gpomdp_estimator
+from potion.common.misc_utils import performance
+
+
 
 class MySuite(PyExperimentSuite):
 
@@ -64,11 +67,21 @@ class MySuite(PyExperimentSuite):
         else:
             ce_batchsizes = params['ce_batchsizes']
 
+        if isinstance(params['ce_batchsizes_own'], str):
+            ce_batchsizes_own = eval(params['ce_batchsizes_own'])
+        else:
+            ce_batchsizes_own = params['ce_batchsizes_own']
+
+        if isinstance(params['njt_batchsizes'], str):
+            njt_batchsizes = eval(params['njt_batchsizes'])
+        else:
+            njt_batchsizes = params['njt_batchsizes']
+
         # Off-policy estimation
         # ---------------------
 
         ## Cross Entropy behavioural policy optimization, with trajectories collection
-        opt_ce_policy, ce_policies, ce_batches = ce_optimization_g(
+        opt_ce_policy, ce_policies, ce_batches = ce_optimization(
             self.env, self.target_policy, ce_batchsizes,
             divergence = params['ce_divergence'],
             estimator = params['estimator'],
@@ -76,7 +89,7 @@ class MySuite(PyExperimentSuite):
             lr = params['ce_lr'],
             max_iter = params['ce_max_iter'],
             tol_grad = params['ce_tol_grad'],
-            seed = self.seed
+            seed = self.seed + n
         )
 
         ## Selection of batches and policies used during CE optimization
@@ -98,7 +111,7 @@ class MySuite(PyExperimentSuite):
                         self.target_policy,
                         self.env.horizon,
                         round(params["batchsize"]*params['defensive_coeff']),
-                        seed = self.seed,
+                        seed = self.seed + n,
                         n_jobs = False) )
             
             off_policies.append(opt_ce_policy)
@@ -108,7 +121,7 @@ class MySuite(PyExperimentSuite):
                     opt_ce_policy,
                     self.env.horizon,
                     round(params["batchsize"]*(1-params['defensive_coeff'])),
-                    seed=self.seed,
+                    seed=self.seed + n,
                     n_jobs=False) )
 
         ## Gradients estimation
@@ -125,6 +138,74 @@ class MySuite(PyExperimentSuite):
             )
         else:
             raise NotImplementedError
+        
+        
+        # Off-policy estimation: own
+        # ---------------------
+
+        ## Cross Entropy behavioural policy optimization, with trajectories collection
+        opt_ce_policy, ce_policies, ce_batches = ce_optimization_g(
+            self.env, self.target_policy, ce_batchsizes_own, njt_batchsizes,
+            divergence = params['ce_divergence'],
+            estimator = params['estimator'],
+            baseline = params['baseline'],
+            lr = params['ce_lr'],
+            max_iter = params['ce_max_iter'],
+            tol_grad = params['ce_tol_grad'],
+            seed = self.seed + n
+        )
+
+        ## Selection of batches and policies used during CE optimization
+        off_policies = []
+        off_batches  = []
+        
+        if params['biased_offpolicy']:
+            # Resure CE samples for final offpolicy estimation
+                off_policies = off_policies + ce_policies
+                off_batches = off_batches + ce_batches
+        
+        if params["batchsize"] > 0:
+            
+            if params['defensive_coeff'] > 0:
+                off_policies.append(self.target_policy)
+                off_batches.append(
+                    generate_batch(
+                        self.env,
+                        self.target_policy,
+                        self.env.horizon,
+                        round(params["batchsize"]*params['defensive_coeff']),
+                        seed = self.seed + n,
+                        n_jobs = False) )
+            
+            off_policies.append(opt_ce_policy)
+            off_batches.append(
+                generate_batch(
+                    self.env,
+                    opt_ce_policy,
+                    self.env.horizon,
+                    round(params["batchsize"]*(1-params['defensive_coeff'])),
+                    seed=self.seed + n,
+                    n_jobs=False) )
+
+        ## Gradients estimation
+        if params["estimator"] == 'gpomdp':
+            off_grad_samples_g, _ = multioff_gpomdp_estimator(
+                concatenate(off_batches),
+                self.env.gamma,
+                self.target_policy,
+                off_policies,
+                get_alphas(off_batches),
+                baselinekind = params["baseline"],
+                result = 'samples',
+                is_shallow = isinstance(self.target_policy, ShallowGaussianPolicy)
+            )
+        else:
+            raise NotImplementedError
+        
+        
+
+
+
 
         # On-policy estimation
         # ---------------------
@@ -134,12 +215,12 @@ class MySuite(PyExperimentSuite):
             self.env,
             self.target_policy,
             self.env.horizon,
-            sum(ce_batchsizes) + params["batchsize"],
-            seed = self.seed
+            #sum(ce_batchsizes) + params["batchsize"],
+            params["on_batchsize"],
+            seed = self.seed + n
         )
 
-        on_batch_returns = [sum(traj[2]) for traj in on_batch] #uj
-        on_batch_returns_discouted = [sum([r*self.env.gamma**t for t,r in enumerate(traj[2])]) for traj in on_batch] #itt a generált kódban csak t,_,r volt #uj
+     
 
         ## Gradients estimation
         if params["estimator"] == 'gpomdp':
@@ -159,11 +240,16 @@ class MySuite(PyExperimentSuite):
         results = {}
         results['grad_is'] = torch.mean(off_grad_samples,0).tolist()
         results['var_grad_is'] = var_mean(off_grad_samples)[1]
+        results['grad_g'] = torch.mean(off_grad_samples_g,0).tolist()
+        results['var_grad_g'] = var_mean(off_grad_samples_g)[1]
         results['grad_mc'] = torch.mean(on_grad_samples,0).tolist()
         results['var_grad_mc'] = var_mean(on_grad_samples)[1]
 
-        results['ret'] = np.mean(on_batch_returns) #uj
-        results['ret_disc'] = np.mean(on_batch_returns_discouted) #uj
+        #results['ret'] = np.mean(on_batch_returns) #uj
+        #results['ret_disc'] = np.mean(on_batch_returns_discounted) #uj
+        #results['ret_disc'] = performance(on_batch, self.env.gamma) #uj
+        #results['ret'] = performance(on_batch, 1) #uj
+        #results["batchsize"] = params["batchsize"] #uj
         
         
         return results
